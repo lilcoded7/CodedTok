@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useState, useRef, useEffect, useCallback } from "react";
+import React, {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   Home,
   Menu,
@@ -23,7 +29,7 @@ import {
   Send,
   ChevronLeft,
   ChevronRight,
-  ChevronDown, // Added this import
+  ChevronDown,
   Grid,
   BookOpen,
   Users,
@@ -37,11 +43,14 @@ import {
   MapPin,
   Link,
   MoreHorizontal,
+  ChevronUp,
+  Hash,
+  Tag,
+  Filter,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import api from "../axios/axiosInsatance";
 
-// ==================== TYPES ====================
 interface CampaignAccount {
   id: string;
   username: string;
@@ -53,6 +62,9 @@ interface CampaignAccount {
   is_public: boolean;
   is_business_account: boolean;
   account_level: string;
+  followers_count: number;
+  following_count: number;
+  posts_count: number;
 }
 
 interface CampaignGalleryItem {
@@ -67,6 +79,22 @@ interface CampaignStats {
   shares: number;
   views: number;
   saves: number;
+  is_liked: boolean;
+  is_saved: boolean;
+}
+
+interface Comment {
+  id: string;
+  user: {
+    id: string;
+    username: string;
+    profile: string | null;
+    verified: boolean;
+  };
+  text: string;
+  likes: number;
+  created_at: string;
+  replies_count: number;
 }
 
 interface Campaign {
@@ -81,6 +109,8 @@ interface Campaign {
   published_at: string;
   campaign_gallery: CampaignGalleryItem[];
   stats: CampaignStats;
+  tags: string[];
+  comments_preview: Comment[];
 }
 
 interface CampaignFeedResponse {
@@ -91,11 +121,13 @@ interface CampaignFeedResponse {
   campaigns: Campaign[];
 }
 
-// ==================== MAIN COMPONENT ====================
+interface CampaignsByAccount {
+  [accountId: string]: Campaign[];
+}
+
 const HomePage = () => {
   const router = useRouter();
 
-  // ==================== STATE ====================
   const [darkMode, setDarkMode] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -106,22 +138,31 @@ const HomePage = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [selectedAccount, setSelectedAccount] =
     useState<CampaignAccount | null>(null);
+  const [showComments, setShowComments] = useState<string | null>(null);
+  const [commentText, setCommentText] = useState("");
 
-  // Data State
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [campaignsByAccount, setCampaignsByAccount] =
+    useState<CampaignsByAccount>({});
   const [loading, setLoading] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState<{ [key: string]: boolean }>({});
+  const [likedCampaigns, setLikedCampaigns] = useState<Set<string>>(new Set());
+  const [savedCampaigns, setSavedCampaigns] = useState<Set<string>>(new Set());
+  const [viewingProfilePost, setViewingProfilePost] = useState(false);
+  const [profilePostIndex, setProfilePostIndex] = useState(0);
 
-  // ==================== REFS ====================
   const videoRefs = useRef<{ [key: string]: HTMLVideoElement }>({});
   const containerRef = useRef<HTMLDivElement>(null);
+  const profileContainerRef = useRef<HTMLDivElement>(null);
+  const observerRef = useRef<IntersectionObserver | null>(null);
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
   const touchStartY = useRef(0);
   const touchEndY = useRef(0);
+  const lastTapTime = useRef<number>(0);
+  const lastTapCampaignId = useRef<string | null>(null);
 
-  // ==================== API FUNCTIONS ====================
   const fetchCampaigns = async () => {
     try {
       setLoading(true);
@@ -130,12 +171,28 @@ const HomePage = () => {
       );
       setCampaigns(response.campaigns);
 
-      // Auto play first video on load
-      setTimeout(() => {
-        if (response.campaigns[0]) {
-          handleAutoPlay(response.campaigns[0].id);
+      const byAccount: CampaignsByAccount = {};
+      response.campaigns.forEach((campaign) => {
+        const accountId = campaign.account.id;
+        if (!byAccount[accountId]) {
+          byAccount[accountId] = [];
         }
-      }, 300);
+        byAccount[accountId].push(campaign);
+      });
+      setCampaignsByAccount(byAccount);
+
+      const liked = new Set<string>();
+      const saved = new Set<string>();
+      response.campaigns.forEach((campaign) => {
+        if (campaign.stats.is_liked) {
+          liked.add(campaign.id);
+        }
+        if (campaign.stats.is_saved) {
+          saved.add(campaign.id);
+        }
+      });
+      setLikedCampaigns(liked);
+      setSavedCampaigns(saved);
     } catch (error) {
       console.error("Failed to fetch campaigns:", error);
     } finally {
@@ -143,7 +200,6 @@ const HomePage = () => {
     }
   };
 
-  // ==================== VIDEO HANDLING ====================
   const handleAutoPlay = (campaignId: string) => {
     const video = videoRefs.current[campaignId];
     if (video) {
@@ -152,18 +208,25 @@ const HomePage = () => {
         .then(() => {
           setIsPlaying((prev) => ({ ...prev, [campaignId]: true }));
         })
-        .catch(console.log);
+        .catch((error) => {
+          console.log("Auto-play failed:", error);
+          setIsPlaying((prev) => ({ ...prev, [campaignId]: false }));
+        });
+    }
+  };
+
+  const pauseVideo = (campaignId: string) => {
+    const video = videoRefs.current[campaignId];
+    if (video) {
+      video.pause();
+      setIsPlaying((prev) => ({ ...prev, [campaignId]: false }));
     }
   };
 
   const pauseAllVideos = (exceptCampaignId?: string) => {
     Object.keys(videoRefs.current).forEach((campaignId) => {
       if (campaignId !== exceptCampaignId) {
-        const video = videoRefs.current[campaignId];
-        if (video) {
-          video.pause();
-          setIsPlaying((prev) => ({ ...prev, [campaignId]: false }));
-        }
+        pauseVideo(campaignId);
       }
     });
   };
@@ -172,9 +235,25 @@ const HomePage = () => {
     const video = videoRefs.current[campaign.id];
     if (!video) return;
 
+    const currentTime = Date.now();
+    const tapDelay = 300;
+
+    if (
+      lastTapCampaignId.current === campaign.id &&
+      currentTime - lastTapTime.current < tapDelay
+    ) {
+      handleLike(campaign);
+      showHeartAnimation(campaign.id);
+      lastTapTime.current = 0;
+      lastTapCampaignId.current = null;
+      return;
+    }
+
+    lastTapTime.current = currentTime;
+    lastTapCampaignId.current = campaign.id;
+
     if (isPlaying[campaign.id]) {
-      video.pause();
-      setIsPlaying((prev) => ({ ...prev, [campaign.id]: false }));
+      pauseVideo(campaign.id);
     } else {
       pauseAllVideos(campaign.id);
       video
@@ -186,12 +265,162 @@ const HomePage = () => {
     }
   };
 
+  const handleProfileVideoClick = (campaignId: string) => {
+    const video = videoRefs.current[campaignId];
+    if (!video) return;
+
+    if (isPlaying[campaignId]) {
+      pauseVideo(campaignId);
+    } else {
+      pauseAllVideos(campaignId);
+      video
+        .play()
+        .then(() => {
+          setIsPlaying((prev) => ({ ...prev, [campaignId]: true }));
+        })
+        .catch(console.log);
+    }
+  };
+
+  const showHeartAnimation = (campaignId: string) => {
+    const heart = document.createElement("div");
+    heart.innerHTML = "❤️";
+    heart.style.position = "absolute";
+    heart.style.top = "50%";
+    heart.style.left = "50%";
+    heart.style.transform = "translate(-50%, -50%)";
+    heart.style.fontSize = "80px";
+    heart.style.opacity = "0";
+    heart.style.zIndex = "100";
+    heart.style.pointerEvents = "none";
+    heart.style.transition = "all 0.5s ease-out";
+
+    const container = document.querySelector(
+      `[data-campaign-id="${campaignId}"]`
+    );
+    if (container) {
+      container.appendChild(heart);
+
+      setTimeout(() => {
+        heart.style.opacity = "1";
+        heart.style.transform = "translate(-50%, -100%) scale(1.2)";
+      }, 10);
+
+      setTimeout(() => {
+        heart.style.opacity = "0";
+        heart.style.transform = "translate(-50%, -150%) scale(0.8)";
+      }, 300);
+
+      setTimeout(() => {
+        if (heart.parentNode) {
+          heart.parentNode.removeChild(heart);
+        }
+      }, 800);
+    }
+  };
+
   const handleGalleryItemClick = (campaignId: string, index: number) => {
     setGalleryIndex((prev) => ({ ...prev, [campaignId]: index }));
     pauseAllVideos();
+    const campaign = campaigns.find((c) => c.id === campaignId);
+    if (campaign) {
+      const newGalleryItem = campaign.campaign_gallery[index];
+      if (newGalleryItem?.video) {
+        setTimeout(() => handleAutoPlay(campaignId), 100);
+      }
+    }
   };
 
-  // ==================== SWIPE HANDLING ====================
+  const handleLike = (campaign: Campaign) => {
+    setLikedCampaigns((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(campaign.id)) {
+        newSet.delete(campaign.id);
+        setCampaigns((prevCampaigns) =>
+          prevCampaigns.map((c) =>
+            c.id === campaign.id
+              ? {
+                  ...c,
+                  stats: {
+                    ...c.stats,
+                    likes: c.stats.likes - 1,
+                    is_liked: false,
+                  },
+                }
+              : c
+          )
+        );
+      } else {
+        newSet.add(campaign.id);
+        setCampaigns((prevCampaigns) =>
+          prevCampaigns.map((c) =>
+            c.id === campaign.id
+              ? {
+                  ...c,
+                  stats: {
+                    ...c.stats,
+                    likes: c.stats.likes + 1,
+                    is_liked: true,
+                  },
+                }
+              : c
+          )
+        );
+      }
+      return newSet;
+    });
+  };
+
+  const handleSave = (campaignId: string) => {
+    setSavedCampaigns((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(campaignId)) {
+        newSet.delete(campaignId);
+        setCampaigns((prevCampaigns) =>
+          prevCampaigns.map((c) =>
+            c.id === campaignId
+              ? {
+                  ...c,
+                  stats: {
+                    ...c.stats,
+                    saves: c.stats.saves - 1,
+                    is_saved: false,
+                  },
+                }
+              : c
+          )
+        );
+      } else {
+        newSet.add(campaignId);
+        setCampaigns((prevCampaigns) =>
+          prevCampaigns.map((c) =>
+            c.id === campaignId
+              ? {
+                  ...c,
+                  stats: {
+                    ...c.stats,
+                    saves: c.stats.saves + 1,
+                    is_saved: true,
+                  },
+                }
+              : c
+          )
+        );
+      }
+      return newSet;
+    });
+  };
+
+  const handlePostClick = (accountId: string, campaignId: string) => {
+    const accountCampaigns = campaignsByAccount[accountId] || [];
+    const index = accountCampaigns.findIndex((c) => c.id === campaignId);
+    if (index !== -1) {
+      setProfilePostIndex(index);
+      setViewingProfilePost(true);
+      pauseAllVideos();
+    }
+  };
+
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
     touchStartY.current = e.touches[0].clientY;
@@ -207,26 +436,34 @@ const HomePage = () => {
 
     const diffX = touchStartX.current - touchEndX.current;
     const diffY = touchStartY.current - touchEndY.current;
-    const threshold = 50;
+    const threshold = 70;
+    const tapThreshold = 10;
 
-    // Horizontal swipe (right to left = show profile)
+    touchStartX.current = 0;
+    touchEndX.current = 0;
+    touchStartY.current = 0;
+    touchEndY.current = 0;
+
     if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > threshold) {
       setIsSwiping(true);
 
       if (diffX > 0) {
-        // Swipe right to left - show profile
         const currentCampaign = campaigns[currentIndex];
         if (currentCampaign) {
           setSelectedAccount(currentCampaign.account);
+          pauseAllVideos();
           setShowProfile(true);
+        }
+      } else if (diffX < 0) {
+        const campaign = campaigns[currentIndex];
+        const currentGalleryIndex = galleryIndex[campaign.id] || 0;
+        if (campaign.campaign_gallery.length > 1 && currentGalleryIndex > 0) {
+          handleGalleryItemClick(campaign.id, currentGalleryIndex - 1);
         }
       }
 
       setTimeout(() => setIsSwiping(false), 300);
-    }
-
-    // Vertical swipe (navigate between videos)
-    else if (Math.abs(diffY) > threshold) {
+    } else if (Math.abs(diffY) > threshold) {
       setIsSwiping(true);
       const container = containerRef.current;
       if (!container) return;
@@ -243,16 +480,22 @@ const HomePage = () => {
         });
 
         setCurrentIndex(newIndex);
-
-        // Auto play new video
-        const newCampaign = campaigns[newIndex];
-        if (newCampaign) {
-          pauseAllVideos(newCampaign.id);
-          handleAutoPlay(newCampaign.id);
-        }
       }
 
       setTimeout(() => setIsSwiping(false), 300);
+    }
+  };
+
+  const handleProfileTouchEnd = () => {
+    const diffX = touchStartX.current - touchEndX.current;
+    const threshold = 50;
+
+    if (Math.abs(diffX) > threshold) {
+      if (diffX < 0) {
+        setShowProfile(false);
+        setSelectedAccount(null);
+        setViewingProfilePost(false);
+      }
     }
   };
 
@@ -282,23 +525,55 @@ const HomePage = () => {
 
         setCurrentIndex(newIndex);
 
-        // Auto play new video
-        const newCampaign = campaigns[newIndex];
-        if (newCampaign) {
-          pauseAllVideos(newCampaign.id);
-          handleAutoPlay(newCampaign.id);
-        }
-
         setTimeout(() => setIsSwiping(false), 300);
       }
     },
     [currentIndex, campaigns, isSwiping]
   );
 
-  // ==================== EFFECTS ====================
+  const setupIntersectionObserver = useCallback(() => {
+    if (!containerRef.current || observerRef.current) return;
+
+    const options = {
+      root: containerRef.current,
+      rootMargin: '0px',
+      threshold: 0.6
+    };
+
+    observerRef.current = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const campaignId = entry.target.getAttribute('data-campaign-id');
+        if (!campaignId) return;
+
+        if (entry.isIntersecting) {
+          handleAutoPlay(campaignId);
+        } else {
+          pauseVideo(campaignId);
+        }
+      });
+    }, options);
+
+    const videoContainers = containerRef.current.querySelectorAll('[data-campaign-id]');
+    videoContainers.forEach((container) => {
+      observerRef.current?.observe(container);
+    });
+  }, [campaigns]);
+
   useEffect(() => {
     fetchCampaigns();
   }, []);
+
+  useEffect(() => {
+    if (!loading && campaigns.length > 0) {
+      setupIntersectionObserver();
+    }
+
+    return () => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
+  }, [loading, campaigns, setupIntersectionObserver]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -311,13 +586,17 @@ const HomePage = () => {
     };
   }, [handleWheel]);
 
-  // ==================== HELPER FUNCTIONS ====================
+  useEffect(() => {
+    if (showProfile || viewingProfilePost) {
+      pauseAllVideos();
+    }
+  }, [showProfile, viewingProfilePost]);
+
   const getDisplayMedia = (
     campaign: Campaign
   ): { url: string | null; type: "video" | "image" | "none" } => {
     const currentGalleryIndex = galleryIndex[campaign.id] || 0;
 
-    // If user selected a gallery item
     if (
       campaign.campaign_gallery.length > 0 &&
       galleryIndex[campaign.id] !== undefined
@@ -331,12 +610,10 @@ const HomePage = () => {
       }
     }
 
-    // Default campaign video
     if (campaign.video) {
       return { url: campaign.video, type: "video" };
     }
 
-    // Campaign image
     if (campaign.image) {
       return { url: campaign.image, type: "image" };
     }
@@ -362,7 +639,144 @@ const HomePage = () => {
     return num.toString();
   };
 
-  // ==================== PROFILE COMPONENT ====================
+  const CommentsView = ({
+    campaign,
+    onClose,
+  }: {
+    campaign: Campaign;
+    onClose: () => void;
+  }) => {
+    const [comments, setComments] = useState<Comment[]>(
+      campaign.comments_preview || []
+    );
+
+    const handleSendComment = () => {
+      if (commentText.trim()) {
+        const newComment: Comment = {
+          id: `temp_${Date.now()}`,
+          user: {
+            id: "current_user",
+            username: "You",
+            profile: null,
+            verified: false,
+          },
+          text: commentText,
+          likes: 0,
+          created_at: new Date().toISOString(),
+          replies_count: 0,
+        };
+        setComments([newComment, ...comments]);
+        setCommentText("");
+      }
+    };
+
+    return (
+      <div className="fixed inset-0 z-50 bg-black">
+        <div className="sticky top-0 bg-black/95 backdrop-blur-lg border-b border-gray-800">
+          <div className="flex items-center justify-between p-4">
+            <button
+              onClick={onClose}
+              className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center"
+            >
+              <ChevronLeft className="w-5 h-5 text-white" />
+            </button>
+            <div className="flex-1 text-center">
+              <h2 className="text-lg font-bold">Comments</h2>
+              <p className="text-xs text-gray-400">
+                {formatNumber(campaign.stats.comments)} comments
+              </p>
+            </div>
+            <div className="w-10"></div>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto pb-20">
+          {comments.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16">
+              <MessageCircle className="w-16 h-16 text-gray-600 mb-4" />
+              <h3 className="text-xl font-bold mb-2">No comments yet</h3>
+              <p className="text-gray-400 text-center max-w-xs">
+                Be the first to comment on this post.
+              </p>
+            </div>
+          ) : (
+            <div className="p-4 space-y-6">
+              {comments.map((comment) => (
+                <div key={comment.id} className="flex space-x-3">
+                  <img
+                    src={
+                      comment.user.profile ||
+                      "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop"
+                    }
+                    alt={comment.user.username}
+                    className="w-10 h-10 rounded-full"
+                  />
+                  <div className="flex-1">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-bold">{comment.user.username}</span>
+                      {comment.user.verified && (
+                        <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+                          <span className="text-xs text-white">✓</span>
+                        </div>
+                      )}
+                      <span className="text-xs text-gray-400">
+                        {new Date(comment.created_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="mt-1">{comment.text}</p>
+                    <div className="flex items-center space-x-4 mt-2">
+                      <button className="text-sm text-gray-400 hover:text-white">
+                        {comment.likes > 0
+                          ? `${formatNumber(comment.likes)} likes`
+                          : "Like"}
+                      </button>
+                      {comment.replies_count > 0 && (
+                        <button className="text-sm text-gray-400 hover:text-white">
+                          {comment.replies_count} replies
+                        </button>
+                      )}
+                      <button className="text-sm text-gray-400 hover:text-white">
+                        Reply
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-lg border-t border-gray-800 p-4">
+          <div className="flex items-center space-x-3">
+            <input
+              type="text"
+              value={commentText}
+              onChange={(e) => setCommentText(e.target.value)}
+              placeholder="Add a comment..."
+              className="flex-1 bg-gray-900 rounded-full px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-[#2ECC71]"
+              onKeyPress={(e) => {
+                if (e.key === "Enter") {
+                  handleSendComment();
+                }
+              }}
+            />
+            <button
+              onClick={handleSendComment}
+              disabled={!commentText.trim()}
+              className={`px-4 py-3 rounded-full font-medium ${
+                commentText.trim()
+                  ? "bg-[#2ECC71] text-white"
+                  : "bg-gray-800 text-gray-400"
+              }`}
+            >
+              <Send className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const ProfileView = ({
     account,
     onClose,
@@ -371,20 +785,20 @@ const HomePage = () => {
     onClose: () => void;
   }) => {
     const [activeTab, setActiveTab] = useState("posts");
-
-    // Mock data for profile
-    const profileStats = {
-      posts: campaigns.filter((c) => c.account.id === account.id).length,
-      followers: Math.floor(Math.random() * 1000) + 100,
-      following: Math.floor(Math.random() * 500) + 50,
-    };
-
-    const userCampaigns = campaigns.filter((c) => c.account.id === account.id);
+    const userCampaigns = useMemo(
+      () => campaignsByAccount[account.id] || [],
+      [campaignsByAccount, account.id]
+    );
 
     return (
-      <div className="fixed inset-0 z-50 bg-black">
-        {/* Profile Header */}
-        <div className="sticky top-0 bg-black/95 backdrop-blur-lg border-b border-gray-800">
+      <div
+        ref={profileContainerRef}
+        className="fixed inset-0 z-50 bg-black overflow-y-auto"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleProfileTouchEnd}
+      >
+        <div className="sticky top-0 bg-black/95 backdrop-blur-lg border-b border-gray-800 z-10">
           <div className="flex items-center justify-between p-4">
             <button
               onClick={onClose}
@@ -401,7 +815,6 @@ const HomePage = () => {
             </button>
           </div>
 
-          {/* Profile Info */}
           <div className="px-4 pb-6">
             <div className="flex items-start justify-between mb-4">
               <div className="flex-1">
@@ -450,23 +863,22 @@ const HomePage = () => {
                   )}
                 </div>
 
-                {/* Stats */}
                 <div className="flex items-center justify-between mb-6">
                   <div className="text-center">
                     <div className="text-2xl font-bold">
-                      {profileStats.posts}
+                      {account.posts_count || 0}
                     </div>
                     <div className="text-sm text-gray-400">Posts</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold">
-                      {formatNumber(profileStats.followers)}
+                      {formatNumber(account.followers_count || 0)}
                     </div>
                     <div className="text-sm text-gray-400">Followers</div>
                   </div>
                   <div className="text-center">
                     <div className="text-2xl font-bold">
-                      {formatNumber(profileStats.following)}
+                      {formatNumber(account.following_count || 0)}
                     </div>
                     <div className="text-sm text-gray-400">Following</div>
                   </div>
@@ -474,7 +886,6 @@ const HomePage = () => {
               </div>
             </div>
 
-            {/* Action Buttons */}
             <div className="flex space-x-3 mb-6">
               <button className="flex-1 bg-[#2ECC71] text-white py-2.5 rounded-lg font-medium hover:opacity-90">
                 Follow
@@ -489,7 +900,6 @@ const HomePage = () => {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="border-b border-gray-800">
           <div className="flex">
             <button
@@ -522,66 +932,72 @@ const HomePage = () => {
                   : "text-gray-400"
               }`}
             >
-              <BookOpen className="w-5 h-5 mx-auto mb-1" />
+              <Tag className="w-5 h-5 mx-auto mb-1" />
               <span className="text-xs">TAGGED</span>
             </button>
           </div>
         </div>
 
-        {/* Posts Grid */}
-        <div className="grid grid-cols-3 gap-1 p-1">
-          {userCampaigns.map((campaign) => {
-            const media = getDisplayMedia(campaign);
-            return (
-              <div
-                key={campaign.id}
-                className="aspect-square bg-gray-900 relative overflow-hidden group"
-              >
-                {media.url ? (
-                  media.type === "video" ? (
-                    <video
-                      src={media.url}
-                      className="w-full h-full object-cover"
-                      muted
-                      loop
-                      playsInline
-                    />
+        {activeTab === "posts" && (
+          <div className="grid grid-cols-3 gap-1 p-1">
+            {userCampaigns.map((campaign) => {
+              const media = getDisplayMedia(campaign);
+              return (
+                <button
+                  key={campaign.id}
+                  onClick={() => handlePostClick(account.id, campaign.id)}
+                  className="aspect-square bg-gray-900 relative overflow-hidden group"
+                >
+                  {media.url ? (
+                    media.type === "video" ? (
+                      <div className="relative w-full h-full">
+                        <video
+                          src={media.url}
+                          className="w-full h-full object-cover"
+                          muted
+                          loop
+                          playsInline
+                        />
+                        <div className="absolute bottom-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded flex items-center space-x-1">
+                          <Video className="w-3 h-3" />
+                          <span>{formatNumber(campaign.stats.views || 0)}</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <img
+                        src={media.url}
+                        alt={campaign.post_name}
+                        className="w-full h-full object-cover"
+                      />
+                    )
                   ) : (
-                    <img
-                      src={media.url}
-                      alt={campaign.post_name}
-                      className="w-full h-full object-cover"
-                    />
-                  )
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-gray-800 to-black flex items-center justify-center">
-                    <Camera className="w-8 h-8 text-gray-600" />
-                  </div>
-                )}
-
-                {/* Overlay on hover */}
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-1">
-                      <Heart className="w-4 h-4 text-white" />
-                      <span className="text-white text-sm">
-                        {formatNumber(campaign.stats.likes)}
-                      </span>
+                    <div className="w-full h-full bg-gradient-to-br from-gray-800 to-black flex items-center justify-center">
+                      <Camera className="w-8 h-8 text-gray-600" />
                     </div>
-                    <div className="flex items-center space-x-1">
-                      <MessageCircle className="w-4 h-4 text-white" />
-                      <span className="text-white text-sm">
-                        {formatNumber(campaign.stats.comments)}
-                      </span>
+                  )}
+
+                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <div className="flex items-center space-x-4">
+                      <div className="flex items-center space-x-1">
+                        <Heart className="w-4 h-4 text-white" />
+                        <span className="text-white text-sm">
+                          {formatNumber(campaign.stats.likes)}
+                        </span>
+                      </div>
+                      <div className="flex items-center space-x-1">
+                        <MessageCircle className="w-4 h-4 text-white" />
+                        <span className="text-white text-sm">
+                          {formatNumber(campaign.stats.comments)}
+                        </span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
-        {/* Empty State */}
         {userCampaigns.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16">
             <div className="w-20 h-20 rounded-full bg-gray-900 flex items-center justify-center mb-4">
@@ -597,10 +1013,204 @@ const HomePage = () => {
     );
   };
 
-  // ==================== RENDER ====================
+  const ProfilePostView = ({
+    account,
+    campaigns,
+    initialIndex,
+    onClose,
+  }: {
+    account: CampaignAccount;
+    campaigns: Campaign[];
+    initialIndex: number;
+    onClose: () => void;
+  }) => {
+    const [currentPostIndex, setCurrentPostIndex] = useState(initialIndex);
+    const currentCampaign = campaigns[currentPostIndex];
+
+    const handleNextPost = () => {
+      if (currentPostIndex < campaigns.length - 1) {
+        pauseAllVideos();
+        setCurrentPostIndex(currentPostIndex + 1);
+      }
+    };
+
+    const handlePrevPost = () => {
+      if (currentPostIndex > 0) {
+        pauseAllVideos();
+        setCurrentPostIndex(currentPostIndex - 1);
+      }
+    };
+
+    const media = getDisplayMedia(currentCampaign);
+
+    return (
+      <div className="fixed inset-0 z-50 bg-black">
+        <div className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 to-transparent p-4">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={onClose}
+              className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center"
+            >
+              <ChevronLeft className="w-5 h-5 text-white" />
+            </button>
+            <div className="flex-1 text-center">
+              <div className="flex items-center justify-center space-x-2">
+                <img
+                  src={
+                    account.profile ||
+                    "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop"
+                  }
+                  alt={account.username}
+                  className="w-8 h-8 rounded-full"
+                />
+                <span className="font-bold">{account.username}</span>
+                {account.verified && (
+                  <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+                    <span className="text-xs text-white">✓</span>
+                  </div>
+                )}
+              </div>
+            </div>
+            <button className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
+              <MoreHorizontal className="w-5 h-5 text-white" />
+            </button>
+          </div>
+        </div>
+
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-20 bg-black/50 backdrop-blur-sm px-4 py-2 rounded-full text-sm">
+          {currentPostIndex + 1} / {campaigns.length}
+        </div>
+
+        <div className="relative w-full h-full">
+          {media.url ? (
+            media.type === "video" ? (
+              <video
+                ref={(el) => {
+                  if (el) videoRefs.current[currentCampaign.id] = el;
+                }}
+                src={media.url}
+                className="w-full h-full object-contain"
+                autoPlay
+                loop
+                muted={isMuted}
+                playsInline
+                onClick={() => handleProfileVideoClick(currentCampaign.id)}
+              />
+            ) : (
+              <img
+                src={media.url}
+                alt={currentCampaign.post_name}
+                className="w-full h-full object-contain"
+              />
+            )
+          ) : (
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 to-black">
+              <div className="text-center">
+                <Video className="w-16 h-16 text-gray-600 mx-auto mb-4" />
+                <p className="text-gray-400">No media available</p>
+              </div>
+            </div>
+          )}
+
+          {campaigns.length > 1 && (
+            <>
+              {currentPostIndex > 0 && (
+                <button
+                  onClick={handlePrevPost}
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center"
+                >
+                  <ChevronLeft className="w-6 h-6 text-white" />
+                </button>
+              )}
+              {currentPostIndex < campaigns.length - 1 && (
+                <button
+                  onClick={handleNextPost}
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center"
+                >
+                  <ChevronRight className="w-6 h-6 text-white" />
+                </button>
+              )}
+            </>
+          )}
+        </div>
+
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
+          <h3 className="text-xl font-bold mb-2">
+            {currentCampaign.post_name}
+          </h3>
+          {currentCampaign.post_description && (
+            <p className="text-gray-200 mb-4">
+              {currentCampaign.post_description}
+            </p>
+          )}
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={() => handleLike(currentCampaign)}
+                className="flex items-center space-x-2"
+              >
+                <Heart
+                  className={`w-6 h-6 ${
+                    likedCampaigns.has(currentCampaign.id)
+                      ? "text-red-500 fill-red-500"
+                      : "text-white"
+                  }`}
+                />
+                <span className="text-white">
+                  {formatNumber(currentCampaign.stats.likes)}
+                </span>
+              </button>
+              <button
+                onClick={() => setShowComments(currentCampaign.id)}
+                className="flex items-center space-x-2"
+              >
+                <MessageCircle className="w-6 h-6 text-white" />
+                <span className="text-white">
+                  {formatNumber(currentCampaign.stats.comments)}
+                </span>
+              </button>
+              <button
+                onClick={() => handleSave(currentCampaign.id)}
+                className="flex items-center space-x-2"
+              >
+                <Bookmark
+                  className={`w-6 h-6 ${
+                    savedCampaigns.has(currentCampaign.id)
+                      ? "text-yellow-500 fill-yellow-500"
+                      : "text-white"
+                  }`}
+                />
+                <span className="text-white">
+                  {formatNumber(currentCampaign.stats.saves)}
+                </span>
+              </button>
+            </div>
+            <div className="text-sm text-gray-300">
+              {formatNumber(currentCampaign.stats.views)} views
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  if (viewingProfilePost && selectedAccount) {
+    const userCampaigns = campaignsByAccount[selectedAccount.id] || [];
+    return (
+      <ProfilePostView
+        account={selectedAccount}
+        campaigns={userCampaigns}
+        initialIndex={profilePostIndex}
+        onClose={() => {
+          setViewingProfilePost(false);
+          setSelectedAccount(null);
+        }}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* Header */}
       <header className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-lg border-b border-gray-800">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
@@ -622,7 +1232,6 @@ const HomePage = () => {
         </div>
       </header>
 
-      {/* Main Feed */}
       <main
         ref={containerRef}
         className="pt-16 h-screen overflow-y-auto snap-y snap-mandatory"
@@ -650,15 +1259,16 @@ const HomePage = () => {
             const displayMedia = getDisplayMedia(campaign);
             const currentGalleryIndex = galleryIndex[campaign.id] || 0;
             const hasGallery = campaign.campaign_gallery.length > 0;
+            const isLiked = likedCampaigns.has(campaign.id);
+            const isSaved = savedCampaigns.has(campaign.id);
 
             return (
               <div
                 key={campaign.id}
+                data-campaign-id={campaign.id}
                 className="h-screen w-full snap-start relative"
               >
-                {/* Media Container */}
                 <div className="relative w-full h-full bg-black">
-                  {/* Video/Image Display */}
                   {displayMedia.url ? (
                     displayMedia.type === "video" ? (
                       <video
@@ -669,7 +1279,6 @@ const HomePage = () => {
                         loop
                         muted={isMuted}
                         playsInline
-                        autoPlay
                         onClick={() => handleVideoClick(campaign)}
                       >
                         <source src={displayMedia.url} type="video/mp4" />
@@ -692,16 +1301,21 @@ const HomePage = () => {
                     </div>
                   )}
 
-                  {/* Play/Pause Overlay */}
-                  {displayMedia.type === "video" && !isPlaying[campaign.id] && (
-                    <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity pointer-events-none">
-                      <div className="w-20 h-20 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
-                        <Play className="w-10 h-10 text-white ml-1" />
+                  <div
+                    className="absolute inset-0 cursor-pointer"
+                    onClick={() => handleVideoClick(campaign)}
+                  >
+                    {displayMedia.type === "video" && isPlaying[campaign.id] && (
+                      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                        <div className="w-20 h-20 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
+                          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
+                            <div className="w-6 h-6 bg-white rounded-sm"></div>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
-                  {/* Gallery Items Bar */}
                   {hasGallery && (
                     <div className="absolute bottom-32 right-4 flex flex-col items-center space-y-6">
                       {campaign.campaign_gallery.map((item, idx) => (
@@ -745,12 +1359,11 @@ const HomePage = () => {
                     </div>
                   )}
 
-                  {/* Side Action Buttons */}
                   <div className="absolute bottom-32 right-4 flex flex-col items-center space-y-6">
-                    {/* Profile Avatar - Click to open profile */}
                     <button
                       onClick={() => {
                         setSelectedAccount(campaign.account);
+                        pauseAllVideos();
                         setShowProfile(true);
                       }}
                       className="flex flex-col items-center group"
@@ -767,18 +1380,26 @@ const HomePage = () => {
                       </div>
                     </button>
 
-                    {/* Like Button */}
-                    <button className="flex flex-col items-center">
+                    <button
+                      onClick={() => handleLike(campaign)}
+                      className="flex flex-col items-center"
+                    >
                       <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center mb-1">
-                        <Heart className="w-7 h-7 text-white" />
+                        <Heart
+                          className={`w-7 h-7 ${
+                            isLiked ? "text-red-500 fill-red-500" : "text-white"
+                          }`}
+                        />
                       </div>
                       <span className="text-xs text-white">
                         {formatNumber(campaign.stats.likes)}
                       </span>
                     </button>
 
-                    {/* Comment Button */}
-                    <button className="flex flex-col items-center">
+                    <button
+                      onClick={() => setShowComments(campaign.id)}
+                      className="flex flex-col items-center"
+                    >
                       <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center mb-1">
                         <MessageCircle className="w-7 h-7 text-white" />
                       </div>
@@ -787,17 +1408,24 @@ const HomePage = () => {
                       </span>
                     </button>
 
-                    {/* Save Button */}
-                    <button className="flex flex-col items-center">
+                    <button
+                      onClick={() => handleSave(campaign.id)}
+                      className="flex flex-col items-center"
+                    >
                       <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center mb-1">
-                        <Bookmark className="w-7 h-7 text-white" />
+                        <Bookmark
+                          className={`w-7 h-7 ${
+                            isSaved
+                              ? "text-yellow-500 fill-yellow-500"
+                              : "text-white"
+                          }`}
+                        />
                       </div>
                       <span className="text-xs text-white">
                         {formatNumber(campaign.stats.saves)}
                       </span>
                     </button>
 
-                    {/* Share Button */}
                     <button className="flex flex-col items-center">
                       <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center mb-1">
                         <Share2 className="w-7 h-7 text-white" />
@@ -808,9 +1436,7 @@ const HomePage = () => {
                     </button>
                   </div>
 
-                  {/* Campaign Info Overlay */}
                   <div className="absolute bottom-4 left-4 right-20 text-white">
-                    {/* Creator Info */}
                     <div className="flex items-center space-x-3 mb-3">
                       <span className="font-bold text-lg">{creator.name}</span>
                       {creator.verified && (
@@ -823,19 +1449,34 @@ const HomePage = () => {
                       </button>
                     </div>
 
-                    {/* Campaign Title */}
                     <h3 className="font-bold text-lg mb-2">
                       {campaign.post_name}
                     </h3>
 
-                    {/* Description */}
                     {campaign.post_description && (
                       <p className="text-gray-200 mb-2 line-clamp-2">
                         {campaign.post_description}
                       </p>
                     )}
 
-                    {/* Stats */}
+                    {campaign.tags && campaign.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {campaign.tags.slice(0, 3).map((tag, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2 py-1 bg-gray-800/80 backdrop-blur-sm rounded-md text-sm"
+                          >
+                            #{tag}
+                          </span>
+                        ))}
+                        {campaign.tags.length > 3 && (
+                          <span className="px-2 py-1 bg-gray-800/80 backdrop-blur-sm rounded-md text-sm">
+                            +{campaign.tags.length - 3}
+                          </span>
+                        )}
+                      </div>
+                    )}
+
                     <div className="flex items-center space-x-4 text-sm text-gray-300">
                       <span>{formatNumber(campaign.stats.views)} views</span>
                       <span>•</span>
@@ -847,7 +1488,6 @@ const HomePage = () => {
                     </div>
                   </div>
 
-                  {/* Volume Control */}
                   {displayMedia.type === "video" && (
                     <div className="absolute top-20 right-4">
                       <button
@@ -863,7 +1503,6 @@ const HomePage = () => {
                     </div>
                   )}
 
-                  {/* Swipe Indicator */}
                   {index === 0 && campaigns.length > 1 && (
                     <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 animate-bounce pointer-events-none">
                       <div className="flex flex-col items-center">
@@ -881,7 +1520,6 @@ const HomePage = () => {
         )}
       </main>
 
-      {/* Profile View */}
       {showProfile && selectedAccount && (
         <ProfileView
           account={selectedAccount}
@@ -892,7 +1530,13 @@ const HomePage = () => {
         />
       )}
 
-      {/* Bottom Navigation */}
+      {showComments && (
+        <CommentsView
+          campaign={campaigns.find((c) => c.id === showComments)!}
+          onClose={() => setShowComments(null)}
+        />
+      )}
+
       <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-lg border-t border-gray-800">
         <div className="flex justify-around items-center h-16">
           <button className="flex flex-col items-center space-y-1 text-white">
@@ -921,6 +1565,7 @@ const HomePage = () => {
               const currentCampaign = campaigns[currentIndex];
               if (currentCampaign) {
                 setSelectedAccount(currentCampaign.account);
+                pauseAllVideos();
                 setShowProfile(true);
               }
             }}
@@ -931,16 +1576,6 @@ const HomePage = () => {
           </button>
         </div>
       </nav>
-
-      <style jsx>{`
-        .snap-y {
-          scroll-snap-type: y mandatory;
-        }
-
-        .snap-start {
-          scroll-snap-align: start;
-        }
-      `}</style>
     </div>
   );
 };

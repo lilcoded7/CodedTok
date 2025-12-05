@@ -1,10 +1,12 @@
-import ApplicantDashboard from '@/components/LandingPage/ApplicantDashboard'
+import ApplicantDashboard from '@/components/LandingPage/TradeDashboard'
+import DashboardPage from '@/components/LandingPage/DashboardPage'
 import React from 'react'
 
 function page() {
   return (
     <div>
-        <ApplicantDashboard />
+       
+        <DashboardPage />
 
     </div>
   )

@@ -1,11 +1,11 @@
-import HeroPage from "@/components/LandingPage/heroPaget";
+import HomePage from "@/components/LandingPage/HomePage";
 
 
 export default function Home() {
   return (
     <div>
       <div className="hero-bg">
-        <HeroPage />
+        <HomePage />
         
       
       </div>

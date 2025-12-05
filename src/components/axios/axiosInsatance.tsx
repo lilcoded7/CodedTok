@@ -86,13 +86,12 @@ class ApiService {
   }
 }
 
-const baseURL =
-  process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000/api/v2/";
+const getBaseUrl = () => {
+  if (process.env.NODE_ENV === "production") {
+    return process.env.NEXT_PUBLIC_API_BASE_URL || "https://127.0.0.1:8000";
+  }
+  return "http://127.0.0.1:8000";
+};
 
-const loginBaseURL =
-  process.env.NEXT_PUBLIC_LOGIN_BASE_URL || "http://127.0.0.1:8000/accounts/";
-
-export const api = new ApiService(baseURL);
-export const authApi = new ApiService(loginBaseURL);
-
+export const api = new ApiService(getBaseUrl());
 export default api;

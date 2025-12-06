@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import SharedSidebar from "./SharedSidebar";
 import {
   DollarSign,
@@ -77,23 +77,7 @@ const EarningsDashboard = () => {
   const [investmentAmounts, setInvestmentAmounts] = useState<{
     [key: number]: string;
   }>({});
-  const [currentUser, setCurrentUser] = useState<{
-    account: {
-      id: string;
-      username: string;
-      name: string | null;
-      profile: string | null;
-      bio: string;
-      verified: boolean;
-      country: string;
-      is_public: boolean;
-      is_business_account: boolean;
-      account_level: string;
-      followers_count: number;
-      following_count: number;
-      posts_count: number;
-    };
-  }>({});
+  const [currentUser, setCurrentUser] = useState<{ account: any } | null>(null);
 
   const userProfile = {
     name: "Alex Morgan",
@@ -506,10 +490,11 @@ const EarningsDashboard = () => {
           setCurrentUser(parsedUser);
         }
       } catch (e) {
-        console.error("Failed to parse user data", e);
+        console.error("Failed to parse user data from localStorage", e);
       }
     }
   }, []);
+
   return (
     <div className={`min-h-screen ${darkMode ? "bg-gray-900" : "bg-gray-50"}`}>
       {/* Mobile Header */}

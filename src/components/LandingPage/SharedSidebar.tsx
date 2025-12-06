@@ -71,15 +71,20 @@ const SharedSidebar = ({
   activeTab,
   setActiveTab,
 }: SharedSidebarProps) => {
-  if (!isOpen) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
+    <>
+      {/* Mobile Overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm lg:hidden"
+          onClick={onClose}
+        />
+      )}
+      {/* Sidebar */}
       <div
-        className="absolute inset-y-0 left-0 w-72 bg-white border-r border-gray-200 shadow-xl p-6 flex flex-col text-gray-900"
+        className={`fixed top-0 left-0 h-full w-72 bg-white border-r border-gray-200 shadow-xl p-6 flex flex-col text-gray-900 z-[60] transform transition-transform duration-300 ease-in-out ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        } lg:translate-x-0 lg:relative lg:h-auto`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -87,7 +92,7 @@ const SharedSidebar = ({
           <h2 className="text-2xl font-bold">Menu</h2>
           <button
             onClick={onClose}
-            className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200"
+            className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 lg:hidden"
           >
             <X className="w-5 h-5 text-gray-600" />
           </button>
@@ -159,7 +164,7 @@ const SharedSidebar = ({
           )}
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

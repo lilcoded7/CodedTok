@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import SharedSidebar from "./SharedSidebar";
 import {
   DollarSign,
@@ -76,6 +76,23 @@ const EarningsDashboard = () => {
   const [activeTab, setActiveTab] = useState("mining");
   const [investmentAmounts, setInvestmentAmounts] = useState<{
     [key: number]: string;
+  }>({});
+  const [currentUser, setCurrentUser] = useState<{
+    account: {
+      id: string;
+      username: string;
+      name: string | null;
+      profile: string | null;
+      bio: string;
+      verified: boolean;
+      country: string;
+      is_public: boolean;
+      is_business_account: boolean;
+      account_level: string;
+      followers_count: number;
+      following_count: number;
+      posts_count: number;
+    };
   }>({});
 
   const userProfile = {
@@ -480,6 +497,19 @@ const EarningsDashboard = () => {
     }
   };
 
+  useEffect(() => {
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        if (parsedUser && parsedUser.account) {
+          setCurrentUser(parsedUser);
+        }
+      } catch (e) {
+        console.error("Failed to parse user data", e);
+      }
+    }
+  }, []);
   return (
     <div className={`min-h-screen ${darkMode ? "bg-gray-900" : "bg-gray-50"}`}>
       {/* Mobile Header */}
@@ -520,13 +550,11 @@ const EarningsDashboard = () => {
 
       <div className="flex pt-16 lg:pt-0">
         <SharedSidebar
-          isMobileMenuOpen={isMobileMenuOpen}
-          setIsMobileMenuOpen={setIsMobileMenuOpen}
+          isOpen={isMobileMenuOpen}
+          onClose={() => setIsMobileMenuOpen(false)}
+          user={currentUser}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          navItems={navItems}
-          userProfile={userProfile}
-          darkMode={darkMode}
         />
 
         {/* Main Content */}

@@ -15,202 +15,151 @@ import {
   X,
   User,
   LogOut,
-  Moon,
-  Sun,
-  TrendingUp,
-  LineChart,
-  Plus,
-  Minus,
-  Gift,
-  CreditCard,
-  DollarSign,
 } from "lucide-react";
 
-interface NavItem {
+interface CampaignAccount {
   id: string;
-  label: string;
-  icon: React.ReactNode;
-}
-
-interface UserProfile {
-  name: string;
-  level: string;
+  username: string;
+  name: string | null;
+  profile: string | null;
+  bio: string;
+  verified: boolean;
+  country: string;
+  is_public: boolean;
+  is_business_account: boolean;
+  account_level: string;
+  followers_count: number;
+  following_count: number;
+  posts_count: number;
 }
 
 interface SharedSidebarProps {
-  isMobileMenuOpen: boolean;
-  setIsMobileMenuOpen: (isOpen: boolean) => void;
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
-  navItems: NavItem[];
-  userProfile: UserProfile;
-  darkMode: boolean;
-  setDarkMode?: (darkMode: boolean) => void;
-  showThemeToggleAndLogout?: boolean;
+  isOpen: boolean;
+  onClose: () => void;
+  user: { account: CampaignAccount } | null;
+  activeTab?: string;
+  setActiveTab?: (tab: string) => void;
 }
 
-const SharedSidebar: React.FC<SharedSidebarProps> = ({
-  isMobileMenuOpen,
-  setIsMobileMenuOpen,
+const navItems = [
+  { id: "dashboard", label: "Dashboard", icon: <Home className="w-5 h-5" /> },
+  {
+    id: "mining",
+    label: "Crypto Mining",
+    icon: <Bitcoin className="w-5 h-5" />,
+  },
+  { id: "gold", label: "Gold Bars", icon: <Gem className="w-5 h-5" /> },
+  { id: "oil", label: "Oil Barrels", icon: <Droplets className="w-5 h-5" /> },
+  { id: "crypto", label: "Crypto Assets", icon: <Coins className="w-5 h-5" /> },
+  {
+    id: "mystery",
+    label: "Mystery Box",
+    icon: <Package className="w-5 h-5" />,
+  },
+  { id: "referrals", label: "Referrals", icon: <Users className="w-5 h-5" /> },
+  {
+    id: "subscription",
+    label: "Subscription",
+    icon: <Crown className="w-5 h-5" />,
+  },
+];
+
+const SharedSidebar = ({
+  isOpen,
+  onClose,
+  user,
   activeTab,
   setActiveTab,
-  navItems,
-  userProfile,
-  darkMode,
-  setDarkMode,
-  showThemeToggleAndLogout = false,
-}) => {
-  return (
-    <>
-      {/* Mobile Sidebar */}
-      {isMobileMenuOpen && (
-        <>
-          <div
-            className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
-            onClick={() => setIsMobileMenuOpen(false)}
-          />
-          <div className="lg:hidden fixed top-0 left-0 z-50 h-full w-80 bg-white dark:bg-gray-800 shadow-2xl">
-            <div className="p-4 border-b border-gray-200 dark:border-gray-700">
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center space-x-2">
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#0A5C36] to-[#2ECC71] flex items-center justify-center">
-                    <div className="w-4 h-4 rounded-full border-2 border-white"></div>
-                  </div>
-                  <span className="text-lg font-bold text-gray-900 dark:text-white">
-                    Prestige<span className="text-[#2ECC71]">Wealth</span>
-                  </span>
-                </div>
-                <button
-                  onClick={() => setIsMobileMenuOpen(false)}
-                  className="w-8 h-8 rounded-full border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700"
-                >
-                  <X className="w-4 h-4 text-gray-600 dark:text-gray-300" />
-                </button>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="relative">
-                  <div className="w-12 h-12 rounded-full border-2 border-[#2ECC71]/30 bg-gradient-to-br from-[#0A5C36] to-[#2ECC71] p-0.5">
-                    <div className="w-full h-full rounded-full bg-white dark:bg-gray-800 flex items-center justify-center">
-                      <User className="w-6 h-6 text-[#2ECC71]" />
-                    </div>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                    {userProfile.name}
-                  </h3>
-                  <span className="inline-block px-2 py-0.5 rounded-full bg-gradient-to-r from-[#0A5C36] to-[#2ECC71] text-white text-xs font-medium">
-                    {userProfile.level}
-                  </span>
-                </div>
-              </div>
-            </div>
-            <nav className="p-3 space-y-1 h-[calc(100vh-200px)] overflow-y-auto">
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center space-x-3 px-3 py-3 rounded-lg ${
-                    activeTab === item.id
-                      ? "bg-gradient-to-r from-[#0A5C36]/10 to-[#2ECC71]/10 border-l-3 border-[#2ECC71]"
-                      : "hover:bg-gray-50 dark:hover:bg-gray-700"
-                  }`}
-                >
-                  <div
-                    className={`${
-                      activeTab === item.id
-                        ? "text-[#2ECC71]"
-                        : "text-gray-600 dark:text-gray-300"
-                    }`}
-                  >
-                    {item.icon}
-                  </div>
-                  <span
-                    className={`text-sm font-medium ${
-                      activeTab === item.id
-                        ? "text-gray-900 dark:text-white"
-                        : "text-gray-700 dark:text-gray-300"
-                    }`}
-                  >
-                    {item.label}
-                  </span>
-                </button>
-              ))}
-            </nav>
-          </div>
-        </>
-      )}
+}: SharedSidebarProps) => {
+  if (!isOpen) return null;
 
-      {/* Desktop Sidebar */}
-      <aside className="hidden lg:flex flex-col w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 min-h-screen sticky top-0">
-        <div className="p-5 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#0A5C36] to-[#2ECC71] flex items-center justify-center">
-              <div className="w-6 h-6 rounded-full border-2 border-white"></div>
-            </div>
-            <span className="text-xl font-bold text-gray-900 dark:text-white">
-              Prestige<span className="text-[#2ECC71]">Wealth</span>
-            </span>
-          </div>
+  return (
+    <div
+      className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="absolute inset-y-0 left-0 w-72 bg-white border-r border-gray-200 shadow-xl p-6 flex flex-col text-gray-900"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-8">
+          <h2 className="text-2xl font-bold">Menu</h2>
+          <button
+            onClick={onClose}
+            className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200"
+          >
+            <X className="w-5 h-5 text-gray-600" />
+          </button>
         </div>
 
-        <div className="p-5 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center space-x-3">
-            <div className="relative">
-              <div className="w-12 h-12 rounded-full border-2 border-[#2ECC71]/30 bg-gradient-to-br from-[#0A5C36] to-[#2ECC71] p-0.5">
-                <div className="w-full h-full rounded-full bg-white dark:bg-gray-800 flex items-center justify-center">
-                  <User className="w-7 h-7 text-[#2ECC71]" />
-                </div>
-              </div>
+        {/* User Profile */}
+        {user ? (
+          <div className="flex items-center space-x-4 mb-8">
+            <img
+              src={
+                user.account.profile ||
+                "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop"
+              }
+              alt={user.account.username}
+              className="w-14 h-14 rounded-full object-cover"
+            />
+            <div>
+              <h3 className="font-bold text-lg">
+                {user.account.name || user.account.username}
+              </h3>
+              <p className="text-sm text-gray-500">@{user.account.username}</p>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center space-x-4 mb-8">
+            <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
+              <User className="w-7 h-7 text-gray-500" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
-                {userProfile.name}
-              </h3>
-              <span className="inline-block px-2 py-1 rounded-full bg-gradient-to-r from-[#0A5C36] to-[#2ECC71] text-white text-xs font-medium mt-1">
-                {userProfile.level}
-              </span>
+              <h3 className="font-bold text-lg">Guest User</h3>
+              <p className="text-sm text-gray-500">Not logged in</p>
             </div>
           </div>
-        </div>
+        )}
 
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+        {/* Navigation */}
+        <nav className="flex-1 space-y-2 overflow-y-auto">
           {navItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center space-x-3 px-4 py-3 rounded-lg transition-all duration-200 ${
+              onClick={() => setActiveTab && setActiveTab(item.id)}
+              className={`w-full flex items-center space-x-4 px-4 py-3 rounded-lg transition-colors ${
                 activeTab === item.id
-                  ? "bg-gradient-to-r from-[#0A5C36]/10 to-[#2ECC71]/10 border-l-3 border-[#2ECC71]"
-                  : "hover:bg-gray-50 dark:hover:bg-gray-700"
+                  ? "bg-[#2ECC71] text-white"
+                  : "text-gray-700 hover:bg-gray-100"
               }`}
             >
-              <div
-                className={`${
-                  activeTab === item.id
-                    ? "text-[#2ECC71]"
-                    : "text-gray-600 dark:text-gray-300"
-                }`}
-              >
-                {item.icon}
-              </div>
-              <span
-                className={`text-sm font-medium ${
-                  activeTab === item.id
-                    ? "text-gray-900 dark:text-white"
-                    : "text-gray-700 dark:text-gray-300"
-                }`}
-              >
-                {item.label}
-              </span>
+              {item.icon}
+              <span className="font-medium">{item.label}</span>
             </button>
           ))}
         </nav>
-      </aside>
-    </>
+
+        {/* Footer */}
+        <div className="mt-8 pt-6 border-t border-gray-200">
+          <button className="w-full flex items-center space-x-4 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+            <Settings className="w-5 h-5" />
+            <span className="font-medium">Settings</span>
+          </button>
+          <button className="w-full flex items-center space-x-4 px-4 py-3 rounded-lg text-gray-700 hover:bg-gray-100">
+            <HelpCircle className="w-5 h-5" />
+            <span className="font-medium">Support</span>
+          </button>
+          {user && (
+            <button className="w-full flex items-center space-x-4 px-4 py-3 rounded-lg text-red-500 hover:bg-red-500/10 mt-2">
+              <LogOut className="w-5 h-5" />
+              <span className="font-medium">Logout</span>
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
   );
 };
 

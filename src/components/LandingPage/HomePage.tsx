@@ -47,8 +47,10 @@ import {
   Hash,
   Tag,
   Filter,
+  Bell,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import SharedSidebar from "./SharedSidebar";
 import api from "../axios/axiosInsatance";
 
 interface CampaignAccount {
@@ -128,7 +130,6 @@ interface CampaignsByAccount {
 const HomePage = () => {
   const router = useRouter();
 
-  const [darkMode, setDarkMode] = useState(true);
   const [showSearch, setShowSearch] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
@@ -138,6 +139,7 @@ const HomePage = () => {
   const [showProfile, setShowProfile] = useState(false);
   const [selectedAccount, setSelectedAccount] =
     useState<CampaignAccount | null>(null);
+  const [showSidebar, setShowSidebar] = useState(false);
   const [showComments, setShowComments] = useState<string | null>(null);
   const [commentText, setCommentText] = useState("");
 
@@ -146,22 +148,35 @@ const HomePage = () => {
     useState<CampaignsByAccount>({});
   const [loading, setLoading] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{
+    account: CampaignAccount;
+  } | null>(null);
   const [isPlaying, setIsPlaying] = useState<{ [key: string]: boolean }>({});
   const [likedCampaigns, setLikedCampaigns] = useState<Set<string>>(new Set());
   const [savedCampaigns, setSavedCampaigns] = useState<Set<string>>(new Set());
   const [viewingProfilePost, setViewingProfilePost] = useState(false);
   const [profilePostIndex, setProfilePostIndex] = useState(0);
+  const [showHeartEffect, setShowHeartEffect] = useState<string | null>(null);
 
   const videoRefs = useRef<{ [key: string]: HTMLVideoElement }>({});
   const containerRef = useRef<HTMLDivElement>(null);
   const profileContainerRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<IntersectionObserver | null>(null);
+  
+  // Gesture tracking refs
   const touchStartX = useRef(0);
   const touchEndX = useRef(0);
   const touchStartY = useRef(0);
   const touchEndY = useRef(0);
-  const lastTapTime = useRef<number>(0);
+  const touchStartTime = useRef(0);
+  const isTap = useRef(false);
+  const isVerticalSwipe = useRef(false);
+  
+  // Double tap tracking refs
+  const lastTapTime = useRef(0);
   const lastTapCampaignId = useRef<string | null>(null);
+  const tapCount = useRef(0);
+  const tapTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchCampaigns = async () => {
     try {
@@ -235,23 +250,6 @@ const HomePage = () => {
     const video = videoRefs.current[campaign.id];
     if (!video) return;
 
-    const currentTime = Date.now();
-    const tapDelay = 300;
-
-    if (
-      lastTapCampaignId.current === campaign.id &&
-      currentTime - lastTapTime.current < tapDelay
-    ) {
-      handleLike(campaign);
-      showHeartAnimation(campaign.id);
-      lastTapTime.current = 0;
-      lastTapCampaignId.current = null;
-      return;
-    }
-
-    lastTapTime.current = currentTime;
-    lastTapCampaignId.current = campaign.id;
-
     if (isPlaying[campaign.id]) {
       pauseVideo(campaign.id);
     } else {
@@ -282,53 +280,138 @@ const HomePage = () => {
     }
   };
 
-  const showHeartAnimation = (campaignId: string) => {
-    const heart = document.createElement("div");
-    heart.innerHTML = "❤️";
-    heart.style.position = "absolute";
-    heart.style.top = "50%";
-    heart.style.left = "50%";
-    heart.style.transform = "translate(-50%, -50%)";
-    heart.style.fontSize = "80px";
-    heart.style.opacity = "0";
-    heart.style.zIndex = "100";
-    heart.style.pointerEvents = "none";
-    heart.style.transition = "all 0.5s ease-out";
+  // Enhanced touch handlers with proper tap vs swipe distinction
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+    touchStartY.current = e.touches[0].clientY;
+    touchStartTime.current = Date.now();
+    isTap.current = true;
+    isVerticalSwipe.current = false;
+  };
 
-    const container = document.querySelector(
-      `[data-campaign-id="${campaignId}"]`
-    );
-    if (container) {
-      container.appendChild(heart);
-
-      setTimeout(() => {
-        heart.style.opacity = "1";
-        heart.style.transform = "translate(-50%, -100%) scale(1.2)";
-      }, 10);
-
-      setTimeout(() => {
-        heart.style.opacity = "0";
-        heart.style.transform = "translate(-50%, -150%) scale(0.8)";
-      }, 300);
-
-      setTimeout(() => {
-        if (heart.parentNode) {
-          heart.parentNode.removeChild(heart);
-        }
-      }, 800);
+  const handleTouchMove = (e: React.TouchEvent) => {
+    touchEndX.current = e.touches[0].clientX;
+    touchEndY.current = e.touches[0].clientY;
+    
+    // Calculate movement
+    const diffX = Math.abs(touchStartX.current - touchEndX.current);
+    const diffY = Math.abs(touchStartY.current - touchEndY.current);
+    
+    // If movement is significant, it's not a tap
+    if (diffX > 10 || diffY > 10) {
+      isTap.current = false;
+      
+      // Determine if it's primarily a vertical swipe
+      if (diffY > diffX && diffY > 30) {
+        isVerticalSwipe.current = true;
+      }
     }
   };
 
-  const handleGalleryItemClick = (campaignId: string, index: number) => {
-    setGalleryIndex((prev) => ({ ...prev, [campaignId]: index }));
-    pauseAllVideos();
-    const campaign = campaigns.find((c) => c.id === campaignId);
-    if (campaign) {
-      const newGalleryItem = campaign.campaign_gallery[index];
-      if (newGalleryItem?.video) {
-        setTimeout(() => handleAutoPlay(campaignId), 100);
+  const handleTouchEnd = (campaignId?: string) => {
+    const touchDuration = Date.now() - touchStartTime.current;
+    const diffX = Math.abs(touchStartX.current - touchEndX.current);
+    const diffY = Math.abs(touchStartY.current - touchEndY.current);
+    
+    // Handle double tap
+    if (campaignId) {
+      const currentTime = Date.now();
+      const doubleTapDelay = 300; // 300ms for double tap
+      
+      if (
+        lastTapCampaignId.current === campaignId &&
+        currentTime - lastTapTime.current < doubleTapDelay
+      ) {
+        // Double tap detected
+        tapCount.current++;
+        if (tapCount.current === 2) {
+          handleLike(campaigns.find(c => c.id === campaignId)!);
+          setShowHeartEffect(campaignId);
+          
+          // Reset double tap tracking
+          tapCount.current = 0;
+          lastTapTime.current = 0;
+          lastTapCampaignId.current = null;
+          
+          if (tapTimeoutRef.current) {
+            clearTimeout(tapTimeoutRef.current);
+          }
+          return; // Don't process as single tap
+        }
+      } else {
+        // First tap or new campaign
+        tapCount.current = 1;
+        lastTapTime.current = currentTime;
+        lastTapCampaignId.current = campaignId;
+        
+        // Set timeout to reset tap count
+        if (tapTimeoutRef.current) {
+          clearTimeout(tapTimeoutRef.current);
+        }
+        tapTimeoutRef.current = setTimeout(() => {
+          tapCount.current = 0;
+        }, doubleTapDelay);
       }
     }
+
+    // Handle single tap (play/pause)
+    if (isTap.current && touchDuration < 200 && diffX < 10 && diffY < 10) {
+      if (campaignId) {
+        const campaign = campaigns.find(c => c.id === campaignId);
+        if (campaign) {
+          handleVideoClick(campaign);
+        }
+      }
+      return;
+    }
+
+    // Handle vertical swipe (navigation)
+    if (isVerticalSwipe.current && diffY > 50) {
+      const container = containerRef.current;
+      if (!container || isSwiping) return;
+
+      const direction = touchStartY.current > touchEndY.current ? 1 : -1;
+      const videoHeight = window.innerHeight;
+      const currentScroll = container.scrollTop;
+      const newIndex = currentIndex + direction;
+
+      if (newIndex >= 0 && newIndex < campaigns.length) {
+        setIsSwiping(true);
+
+        // Pause current video before scrolling
+        const currentCampaign = campaigns[currentIndex];
+        if (currentCampaign) {
+          pauseVideo(currentCampaign.id);
+        }
+
+        container.scrollTo({
+          top: currentScroll + videoHeight * direction,
+          behavior: "smooth",
+        });
+
+        setCurrentIndex(newIndex);
+
+        // Auto-play the new video after a short delay
+        setTimeout(() => {
+          const newCampaign = campaigns[newIndex];
+          if (newCampaign) {
+            const media = getDisplayMedia(newCampaign);
+            if (media.type === "video") {
+              handleAutoPlay(newCampaign.id);
+            }
+          }
+          setIsSwiping(false);
+        }, 300);
+      }
+    }
+
+    // Reset gesture tracking
+    touchStartX.current = 0;
+    touchEndX.current = 0;
+    touchStartY.current = 0;
+    touchEndY.current = 0;
+    isTap.current = false;
+    isVerticalSwipe.current = false;
   };
 
   const handleLike = (campaign: Campaign) => {
@@ -421,71 +504,6 @@ const HomePage = () => {
     }
   };
 
-  const handleTouchStart = (e: React.TouchEvent) => {
-    touchStartX.current = e.touches[0].clientX;
-    touchStartY.current = e.touches[0].clientY;
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    touchEndX.current = e.touches[0].clientX;
-    touchEndY.current = e.touches[0].clientY;
-  };
-
-  const handleTouchEnd = () => {
-    if (isSwiping) return;
-
-    const diffX = touchStartX.current - touchEndX.current;
-    const diffY = touchStartY.current - touchEndY.current;
-    const threshold = 70;
-    const tapThreshold = 10;
-
-    touchStartX.current = 0;
-    touchEndX.current = 0;
-    touchStartY.current = 0;
-    touchEndY.current = 0;
-
-    if (Math.abs(diffX) > Math.abs(diffY) && Math.abs(diffX) > threshold) {
-      setIsSwiping(true);
-
-      if (diffX > 0) {
-        const currentCampaign = campaigns[currentIndex];
-        if (currentCampaign) {
-          setSelectedAccount(currentCampaign.account);
-          pauseAllVideos();
-          setShowProfile(true);
-        }
-      } else if (diffX < 0) {
-        const campaign = campaigns[currentIndex];
-        const currentGalleryIndex = galleryIndex[campaign.id] || 0;
-        if (campaign.campaign_gallery.length > 1 && currentGalleryIndex > 0) {
-          handleGalleryItemClick(campaign.id, currentGalleryIndex - 1);
-        }
-      }
-
-      setTimeout(() => setIsSwiping(false), 300);
-    } else if (Math.abs(diffY) > threshold) {
-      setIsSwiping(true);
-      const container = containerRef.current;
-      if (!container) return;
-
-      const currentScroll = container.scrollTop;
-      const videoHeight = window.innerHeight;
-      const direction = diffY > 0 ? 1 : -1;
-      const newIndex = currentIndex + direction;
-
-      if (newIndex >= 0 && newIndex < campaigns.length) {
-        container.scrollTo({
-          top: currentScroll + videoHeight * direction,
-          behavior: "smooth",
-        });
-
-        setCurrentIndex(newIndex);
-      }
-
-      setTimeout(() => setIsSwiping(false), 300);
-    }
-  };
-
   const handleProfileTouchEnd = () => {
     const diffX = touchStartX.current - touchEndX.current;
     const threshold = 50;
@@ -518,6 +536,12 @@ const HomePage = () => {
       ) {
         setIsSwiping(true);
 
+        // Pause current video before scrolling
+        const currentCampaign = campaigns[currentIndex];
+        if (currentCampaign) {
+          pauseVideo(currentCampaign.id);
+        }
+
         container.scrollTo({
           top: currentScroll + videoHeight * direction,
           behavior: "smooth",
@@ -525,7 +549,17 @@ const HomePage = () => {
 
         setCurrentIndex(newIndex);
 
-        setTimeout(() => setIsSwiping(false), 300);
+        // Auto-play the new video after a short delay
+        setTimeout(() => {
+          const newCampaign = campaigns[newIndex];
+          if (newCampaign) {
+            const media = getDisplayMedia(newCampaign);
+            if (media.type === "video") {
+              handleAutoPlay(newCampaign.id);
+            }
+          }
+          setIsSwiping(false);
+        }, 300);
       }
     },
     [currentIndex, campaigns, isSwiping]
@@ -536,24 +570,34 @@ const HomePage = () => {
 
     const options = {
       root: containerRef.current,
-      rootMargin: '0px',
-      threshold: 0.6
+      rootMargin: "0px",
+      threshold: 0.6,
     };
 
     observerRef.current = new IntersectionObserver((entries) => {
       entries.forEach((entry) => {
-        const campaignId = entry.target.getAttribute('data-campaign-id');
+        const campaignId = entry.target.getAttribute("data-campaign-id");
         if (!campaignId) return;
 
         if (entry.isIntersecting) {
-          handleAutoPlay(campaignId);
+          // When video becomes visible, play it and pause all others
+          pauseAllVideos(campaignId);
+          const campaign = campaigns.find(c => c.id === campaignId);
+          if (campaign) {
+            const media = getDisplayMedia(campaign);
+            if (media.type === "video") {
+              handleAutoPlay(campaignId);
+            }
+          }
         } else {
+          // When video goes out of view, pause it
           pauseVideo(campaignId);
         }
       });
     }, options);
 
-    const videoContainers = containerRef.current.querySelectorAll('[data-campaign-id]');
+    const videoContainers =
+      containerRef.current.querySelectorAll("[data-campaign-id]");
     videoContainers.forEach((container) => {
       observerRef.current?.observe(container);
     });
@@ -561,11 +605,31 @@ const HomePage = () => {
 
   useEffect(() => {
     fetchCampaigns();
+    const userData = localStorage.getItem("user");
+    if (userData) {
+      try {
+        const parsedUser = JSON.parse(userData);
+        if (parsedUser && parsedUser.account) {
+          setCurrentUser(parsedUser);
+        }
+      } catch (e) {
+        console.error("Failed to parse user data", e);
+      }
+    }
   }, []);
 
   useEffect(() => {
     if (!loading && campaigns.length > 0) {
       setupIntersectionObserver();
+      // Auto-play the first video if it exists and is a video
+      if (campaigns[0]) {
+        const media = getDisplayMedia(campaigns[0]);
+        if (media.type === "video") {
+          setTimeout(() => {
+            handleAutoPlay(campaigns[0].id);
+          }, 500);
+        }
+      }
     }
 
     return () => {
@@ -591,6 +655,51 @@ const HomePage = () => {
       pauseAllVideos();
     }
   }, [showProfile, viewingProfilePost]);
+
+  useEffect(() => {
+    if (showHeartEffect) {
+      const timer = setTimeout(() => {
+        setShowHeartEffect(null);
+      }, 800);
+      return () => clearTimeout(timer);
+    }
+  }, [showHeartEffect]);
+
+  // Handle scroll events for manual scrolling
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (isSwiping) return;
+
+      const videoHeight = window.innerHeight;
+      const scrollTop = container.scrollTop;
+      const newIndex = Math.round(scrollTop / videoHeight);
+
+      if (newIndex !== currentIndex && newIndex >= 0 && newIndex < campaigns.length) {
+        // Pause current video
+        const currentCampaign = campaigns[currentIndex];
+        if (currentCampaign) {
+          pauseVideo(currentCampaign.id);
+        }
+
+        setCurrentIndex(newIndex);
+
+        // Auto-play the new video
+        const newCampaign = campaigns[newIndex];
+        if (newCampaign) {
+          const media = getDisplayMedia(newCampaign);
+          if (media.type === "video") {
+            handleAutoPlay(newCampaign.id);
+          }
+        }
+      }
+    };
+
+    container.addEventListener("scroll", handleScroll);
+    return () => container.removeEventListener("scroll", handleScroll);
+  }, [currentIndex, campaigns, isSwiping]);
 
   const getDisplayMedia = (
     campaign: Campaign
@@ -671,18 +780,18 @@ const HomePage = () => {
     };
 
     return (
-      <div className="fixed inset-0 z-50 bg-black">
-        <div className="sticky top-0 bg-black/95 backdrop-blur-lg border-b border-gray-800">
+      <div className="fixed inset-0 z-50 bg-white">
+        <div className="sticky top-0 bg-white border-b border-gray-100">
           <div className="flex items-center justify-between p-4">
             <button
               onClick={onClose}
-              className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center"
+              className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
             >
-              <ChevronLeft className="w-5 h-5 text-white" />
+              <ChevronLeft className="w-5 h-5 text-gray-700" />
             </button>
             <div className="flex-1 text-center">
-              <h2 className="text-lg font-bold">Comments</h2>
-              <p className="text-xs text-gray-400">
+              <h2 className="text-lg font-bold text-gray-900">Comments</h2>
+              <p className="text-xs text-gray-500">
                 {formatNumber(campaign.stats.comments)} comments
               </p>
             </div>
@@ -693,9 +802,9 @@ const HomePage = () => {
         <div className="flex-1 overflow-y-auto pb-20">
           {comments.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
-              <MessageCircle className="w-16 h-16 text-gray-600 mb-4" />
-              <h3 className="text-xl font-bold mb-2">No comments yet</h3>
-              <p className="text-gray-400 text-center max-w-xs">
+              <MessageCircle className="w-16 h-16 text-gray-300 mb-4" />
+              <h3 className="text-xl font-bold mb-2 text-gray-900">No comments yet</h3>
+              <p className="text-gray-500 text-center max-w-xs">
                 Be the first to comment on this post.
               </p>
             </div>
@@ -713,29 +822,29 @@ const HomePage = () => {
                   />
                   <div className="flex-1">
                     <div className="flex items-center space-x-2">
-                      <span className="font-bold">{comment.user.username}</span>
+                      <span className="font-bold text-gray-900">{comment.user.username}</span>
                       {comment.user.verified && (
-                        <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+                        <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
                           <span className="text-xs text-white">✓</span>
                         </div>
                       )}
-                      <span className="text-xs text-gray-400">
+                      <span className="text-xs text-gray-500">
                         {new Date(comment.created_at).toLocaleDateString()}
                       </span>
                     </div>
-                    <p className="mt-1">{comment.text}</p>
+                    <p className="mt-1 text-gray-800">{comment.text}</p>
                     <div className="flex items-center space-x-4 mt-2">
-                      <button className="text-sm text-gray-400 hover:text-white">
+                      <button className="text-sm text-gray-500 hover:text-green-600 transition-colors">
                         {comment.likes > 0
                           ? `${formatNumber(comment.likes)} likes`
                           : "Like"}
                       </button>
                       {comment.replies_count > 0 && (
-                        <button className="text-sm text-gray-400 hover:text-white">
+                        <button className="text-sm text-gray-500 hover:text-green-600 transition-colors">
                           {comment.replies_count} replies
                         </button>
                       )}
-                      <button className="text-sm text-gray-400 hover:text-white">
+                      <button className="text-sm text-gray-500 hover:text-green-600 transition-colors">
                         Reply
                       </button>
                     </div>
@@ -746,14 +855,14 @@ const HomePage = () => {
           )}
         </div>
 
-        <div className="fixed bottom-0 left-0 right-0 bg-black/95 backdrop-blur-lg border-t border-gray-800 p-4">
+        <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 p-4">
           <div className="flex items-center space-x-3">
             <input
               type="text"
               value={commentText}
               onChange={(e) => setCommentText(e.target.value)}
               placeholder="Add a comment..."
-              className="flex-1 bg-gray-900 rounded-full px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-[#2ECC71]"
+              className="flex-1 bg-gray-50 rounded-full px-4 py-3 text-gray-900 focus:outline-none focus:ring-2 focus:ring-green-500 focus:bg-white transition-all"
               onKeyPress={(e) => {
                 if (e.key === "Enter") {
                   handleSendComment();
@@ -763,10 +872,10 @@ const HomePage = () => {
             <button
               onClick={handleSendComment}
               disabled={!commentText.trim()}
-              className={`px-4 py-3 rounded-full font-medium ${
+              className={`px-4 py-3 rounded-full font-medium transition-colors ${
                 commentText.trim()
-                  ? "bg-[#2ECC71] text-white"
-                  : "bg-gray-800 text-gray-400"
+                  ? "bg-green-500 text-white hover:bg-green-600"
+                  : "bg-gray-100 text-gray-400"
               }`}
             >
               <Send className="w-5 h-5" />
@@ -793,25 +902,25 @@ const HomePage = () => {
     return (
       <div
         ref={profileContainerRef}
-        className="fixed inset-0 z-50 bg-black overflow-y-auto"
+        className="fixed inset-0 z-50 bg-white overflow-y-auto"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleProfileTouchEnd}
       >
-        <div className="sticky top-0 bg-black/95 backdrop-blur-lg border-b border-gray-800 z-10">
+        <div className="sticky top-0 bg-white border-b border-gray-100 z-10">
           <div className="flex items-center justify-between p-4">
             <button
               onClick={onClose}
-              className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center"
+              className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors"
             >
-              <ChevronLeft className="w-5 h-5 text-white" />
+              <ChevronLeft className="w-5 h-5 text-gray-700" />
             </button>
             <div className="flex-1 text-center">
-              <h2 className="text-lg font-bold">{account.username}</h2>
-              <p className="text-xs text-gray-400">@{account.username}</p>
+              <h2 className="text-lg font-bold text-gray-900">{account.username}</h2>
+              <p className="text-xs text-gray-500">@{account.username}</p>
             </div>
-            <button className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center">
-              <MoreHorizontal className="w-5 h-5 text-white" />
+            <button className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition-colors">
+              <MoreHorizontal className="w-5 h-5 text-gray-700" />
             </button>
           </div>
 
@@ -825,18 +934,18 @@ const HomePage = () => {
                       "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop"
                     }
                     alt={account.username}
-                    className="w-20 h-20 rounded-full border-2 border-[#2ECC71]"
+                    className="w-20 h-20 rounded-full border-4 border-green-500"
                   />
                   <div>
-                    <h1 className="text-2xl font-bold">
+                    <h1 className="text-2xl font-bold text-gray-900">
                       {account.name || account.username}
                     </h1>
                     {account.verified && (
                       <div className="flex items-center space-x-1 mt-1">
-                        <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+                        <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
                           <span className="text-xs text-white">✓</span>
                         </div>
-                        <span className="text-sm text-gray-400">
+                        <span className="text-sm text-gray-600">
                           Verified Account
                         </span>
                       </div>
@@ -845,10 +954,10 @@ const HomePage = () => {
                 </div>
 
                 {account.bio && (
-                  <p className="text-gray-300 mb-4">{account.bio}</p>
+                  <p className="text-gray-700 mb-4">{account.bio}</p>
                 )}
 
-                <div className="flex items-center space-x-4 text-sm text-gray-400 mb-4">
+                <div className="flex items-center space-x-4 text-sm text-gray-500 mb-4">
                   {account.country && (
                     <div className="flex items-center space-x-1">
                       <MapPin className="w-4 h-4" />
@@ -865,49 +974,49 @@ const HomePage = () => {
 
                 <div className="flex items-center justify-between mb-6">
                   <div className="text-center">
-                    <div className="text-2xl font-bold">
+                    <div className="text-2xl font-bold text-gray-900">
                       {account.posts_count || 0}
                     </div>
-                    <div className="text-sm text-gray-400">Posts</div>
+                    <div className="text-sm text-gray-500">Posts</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold">
+                    <div className="text-2xl font-bold text-gray-900">
                       {formatNumber(account.followers_count || 0)}
                     </div>
-                    <div className="text-sm text-gray-400">Followers</div>
+                    <div className="text-sm text-gray-500">Followers</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-2xl font-bold">
+                    <div className="text-2xl font-bold text-gray-900">
                       {formatNumber(account.following_count || 0)}
                     </div>
-                    <div className="text-sm text-gray-400">Following</div>
+                    <div className="text-sm text-gray-500">Following</div>
                   </div>
                 </div>
               </div>
             </div>
 
             <div className="flex space-x-3 mb-6">
-              <button className="flex-1 bg-[#2ECC71] text-white py-2.5 rounded-lg font-medium hover:opacity-90">
+              <button className="flex-1 bg-green-500 text-white py-2.5 rounded-lg font-medium hover:bg-green-600 transition-colors">
                 Follow
               </button>
-              <button className="flex-1 bg-gray-800 text-white py-2.5 rounded-lg font-medium hover:bg-gray-700">
+              <button className="flex-1 bg-gray-100 text-gray-900 py-2.5 rounded-lg font-medium hover:bg-gray-200 transition-colors">
                 Message
               </button>
-              <button className="w-12 h-12 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-gray-700">
-                <MoreHorizontal className="w-5 h-5 text-white" />
+              <button className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center hover:bg-gray-200 transition-colors">
+                <MoreHorizontal className="w-5 h-5 text-gray-700" />
               </button>
             </div>
           </div>
         </div>
 
-        <div className="border-b border-gray-800">
+        <div className="border-b border-gray-100">
           <div className="flex">
             <button
               onClick={() => setActiveTab("posts")}
-              className={`flex-1 py-4 text-center ${
+              className={`flex-1 py-4 text-center transition-colors ${
                 activeTab === "posts"
-                  ? "text-white border-b-2 border-white"
-                  : "text-gray-400"
+                  ? "text-green-600 border-b-2 border-green-600"
+                  : "text-gray-500 hover:text-gray-700"
               }`}
             >
               <Grid className="w-5 h-5 mx-auto mb-1" />
@@ -915,10 +1024,10 @@ const HomePage = () => {
             </button>
             <button
               onClick={() => setActiveTab("reels")}
-              className={`flex-1 py-4 text-center ${
+              className={`flex-1 py-4 text-center transition-colors ${
                 activeTab === "reels"
-                  ? "text-white border-b-2 border-white"
-                  : "text-gray-400"
+                  ? "text-green-600 border-b-2 border-green-600"
+                  : "text-gray-500 hover:text-gray-700"
               }`}
             >
               <Video className="w-5 h-5 mx-auto mb-1" />
@@ -926,10 +1035,10 @@ const HomePage = () => {
             </button>
             <button
               onClick={() => setActiveTab("tagged")}
-              className={`flex-1 py-4 text-center ${
+              className={`flex-1 py-4 text-center transition-colors ${
                 activeTab === "tagged"
-                  ? "text-white border-b-2 border-white"
-                  : "text-gray-400"
+                  ? "text-green-600 border-b-2 border-green-600"
+                  : "text-gray-500 hover:text-gray-700"
               }`}
             >
               <Tag className="w-5 h-5 mx-auto mb-1" />
@@ -946,7 +1055,7 @@ const HomePage = () => {
                 <button
                   key={campaign.id}
                   onClick={() => handlePostClick(account.id, campaign.id)}
-                  className="aspect-square bg-gray-900 relative overflow-hidden group"
+                  className="aspect-square bg-gray-50 relative overflow-hidden group hover:opacity-90 transition-opacity"
                 >
                   {media.url ? (
                     media.type === "video" ? (
@@ -971,12 +1080,12 @@ const HomePage = () => {
                       />
                     )
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-gray-800 to-black flex items-center justify-center">
-                      <Camera className="w-8 h-8 text-gray-600" />
+                    <div className="w-full h-full bg-gradient-to-br from-gray-100 to-gray-50 flex items-center justify-center">
+                      <Camera className="w-8 h-8 text-gray-400" />
                     </div>
                   )}
 
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                     <div className="flex items-center space-x-4">
                       <div className="flex items-center space-x-1">
                         <Heart className="w-4 h-4 text-white" />
@@ -1000,11 +1109,11 @@ const HomePage = () => {
 
         {userCampaigns.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16">
-            <div className="w-20 h-20 rounded-full bg-gray-900 flex items-center justify-center mb-4">
-              <Camera className="w-10 h-10 text-gray-600" />
+            <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+              <Camera className="w-10 h-10 text-gray-400" />
             </div>
-            <h3 className="text-xl font-bold mb-2">No Posts Yet</h3>
-            <p className="text-gray-400 text-center max-w-xs">
+            <h3 className="text-xl font-bold mb-2 text-gray-900">No Posts Yet</h3>
+            <p className="text-gray-500 text-center max-w-xs">
               When {account.username} shares posts, they'll appear here.
             </p>
           </div>
@@ -1031,6 +1140,17 @@ const HomePage = () => {
       if (currentPostIndex < campaigns.length - 1) {
         pauseAllVideos();
         setCurrentPostIndex(currentPostIndex + 1);
+        
+        // Auto-play the new video if it exists
+        setTimeout(() => {
+          const newCampaign = campaigns[currentPostIndex + 1];
+          if (newCampaign) {
+            const media = getDisplayMedia(newCampaign);
+            if (media.type === "video") {
+              handleAutoPlay(newCampaign.id);
+            }
+          }
+        }, 100);
       }
     };
 
@@ -1038,20 +1158,31 @@ const HomePage = () => {
       if (currentPostIndex > 0) {
         pauseAllVideos();
         setCurrentPostIndex(currentPostIndex - 1);
+        
+        // Auto-play the new video if it exists
+        setTimeout(() => {
+          const newCampaign = campaigns[currentPostIndex - 1];
+          if (newCampaign) {
+            const media = getDisplayMedia(newCampaign);
+            if (media.type === "video") {
+              handleAutoPlay(newCampaign.id);
+            }
+          }
+        }, 100);
       }
     };
 
     const media = getDisplayMedia(currentCampaign);
 
     return (
-      <div className="fixed inset-0 z-50 bg-black">
-        <div className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-black/80 to-transparent p-4">
+      <div className="fixed inset-0 z-50 bg-white">
+        <div className="absolute top-0 left-0 right-0 z-20 bg-gradient-to-b from-white to-transparent p-4">
           <div className="flex items-center justify-between">
             <button
               onClick={onClose}
-              className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center"
+              className="w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center hover:bg-gray-100 transition-colors"
             >
-              <ChevronLeft className="w-5 h-5 text-white" />
+              <ChevronLeft className="w-5 h-5 text-gray-700" />
             </button>
             <div className="flex-1 text-center">
               <div className="flex items-center justify-center space-x-2">
@@ -1061,23 +1192,23 @@ const HomePage = () => {
                     "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop"
                   }
                   alt={account.username}
-                  className="w-8 h-8 rounded-full"
+                  className="w-8 h-8 rounded-full border-2 border-green-500"
                 />
-                <span className="font-bold">{account.username}</span>
+                <span className="font-bold text-gray-900">{account.username}</span>
                 {account.verified && (
-                  <div className="w-4 h-4 rounded-full bg-blue-500 flex items-center justify-center">
+                  <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
                     <span className="text-xs text-white">✓</span>
                   </div>
                 )}
               </div>
             </div>
-            <button className="w-10 h-10 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
-              <MoreHorizontal className="w-5 h-5 text-white" />
+            <button className="w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center hover:bg-gray-100 transition-colors">
+              <MoreHorizontal className="w-5 h-5 text-gray-700" />
             </button>
           </div>
         </div>
 
-        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-20 bg-black/50 backdrop-blur-sm px-4 py-2 rounded-full text-sm">
+        <div className="absolute top-20 left-1/2 transform -translate-x-1/2 z-20 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full text-sm text-gray-700">
           {currentPostIndex + 1} / {campaigns.length}
         </div>
 
@@ -1104,10 +1235,10 @@ const HomePage = () => {
               />
             )
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 to-black">
+            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
               <div className="text-center">
-                <Video className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                <p className="text-gray-400">No media available</p>
+                <Video className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">No media available</p>
               </div>
             </div>
           )}
@@ -1117,29 +1248,29 @@ const HomePage = () => {
               {currentPostIndex > 0 && (
                 <button
                   onClick={handlePrevPost}
-                  className="absolute left-4 top-1/2 transform -translate-y-1/2 w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center"
+                  className="absolute left-4 top-1/2 transform -translate-y-1/2 w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors"
                 >
-                  <ChevronLeft className="w-6 h-6 text-white" />
+                  <ChevronLeft className="w-6 h-6 text-gray-700" />
                 </button>
               )}
               {currentPostIndex < campaigns.length - 1 && (
                 <button
                   onClick={handleNextPost}
-                  className="absolute right-4 top-1/2 transform -translate-y-1/2 w-12 h-12 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center"
+                  className="absolute right-4 top-1/2 transform -translate-y-1/2 w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center hover:bg-white transition-colors"
                 >
-                  <ChevronRight className="w-6 h-6 text-white" />
+                  <ChevronRight className="w-6 h-6 text-gray-700" />
                 </button>
               )}
             </>
           )}
         </div>
 
-        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
-          <h3 className="text-xl font-bold mb-2">
+        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white to-transparent p-6">
+          <h3 className="text-xl font-bold mb-2 text-gray-900">
             {currentCampaign.post_name}
           </h3>
           {currentCampaign.post_description && (
-            <p className="text-gray-200 mb-4">
+            <p className="text-gray-700 mb-4">
               {currentCampaign.post_description}
             </p>
           )}
@@ -1150,13 +1281,13 @@ const HomePage = () => {
                 className="flex items-center space-x-2"
               >
                 <Heart
-                  className={`w-6 h-6 ${
+                  className={`w-6 h-6 transition-colors ${
                     likedCampaigns.has(currentCampaign.id)
                       ? "text-red-500 fill-red-500"
-                      : "text-white"
+                      : "text-gray-700 hover:text-red-500"
                   }`}
                 />
-                <span className="text-white">
+                <span className="text-gray-700">
                   {formatNumber(currentCampaign.stats.likes)}
                 </span>
               </button>
@@ -1164,8 +1295,8 @@ const HomePage = () => {
                 onClick={() => setShowComments(currentCampaign.id)}
                 className="flex items-center space-x-2"
               >
-                <MessageCircle className="w-6 h-6 text-white" />
-                <span className="text-white">
+                <MessageCircle className="w-6 h-6 text-gray-700 hover:text-green-600 transition-colors" />
+                <span className="text-gray-700">
                   {formatNumber(currentCampaign.stats.comments)}
                 </span>
               </button>
@@ -1174,18 +1305,18 @@ const HomePage = () => {
                 className="flex items-center space-x-2"
               >
                 <Bookmark
-                  className={`w-6 h-6 ${
+                  className={`w-6 h-6 transition-colors ${
                     savedCampaigns.has(currentCampaign.id)
                       ? "text-yellow-500 fill-yellow-500"
-                      : "text-white"
+                      : "text-gray-700 hover:text-yellow-500"
                   }`}
                 />
-                <span className="text-white">
+                <span className="text-gray-700">
                   {formatNumber(currentCampaign.stats.saves)}
                 </span>
               </button>
             </div>
-            <div className="text-sm text-gray-300">
+            <div className="text-sm text-gray-500">
               {formatNumber(currentCampaign.stats.views)} views
             </div>
           </div>
@@ -1210,23 +1341,43 @@ const HomePage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <header className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-lg border-b border-gray-800">
+    <div className="min-h-screen bg-white text-gray-900">
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-b border-gray-100">
         <div className="container mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <button
-              onClick={() => setShowSearch(true)}
-              className="w-10 h-10 rounded-full bg-gray-900 flex items-center justify-center"
+              onClick={() => setShowSidebar(true)}
+              className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-200 hover:bg-gray-200 transition-colors"
             >
-              <Search className="w-5 h-5 text-white" />
+              {currentUser && currentUser.account.profile ? (
+                <img
+                  src={currentUser.account.profile}
+                  alt={currentUser.account.username}
+                  className="w-full h-full object-cover"
+                />
+              ) : currentUser ? (
+                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                  <User className="w-5 h-5 text-gray-600" />
+                </div>
+              ) : (
+                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                  <User className="w-5 h-5 text-gray-600" />
+                </div>
+              )}
             </button>
 
-            <span className="text-xl font-bold">
-              Wealth<span className="text-[#2ECC71]">Tok</span>
-            </span>
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-600 to-green-500 flex items-center justify-center">
+                <div className="w-4 h-4 rounded-full border-2 border-white"></div>
+              </div>
+              <span className="text-lg font-bold text-gray-900">
+                Prestige<span className="text-green-600">Wealth</span>
+              </span>
+            </div>
 
-            <button className="w-10 h-10 rounded-full bg-gradient-to-br from-[#0A5C36] to-[#2ECC71] flex items-center justify-center">
-              <Plus className="w-5 h-5 text-white" />
+            <button className="relative w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition-colors">
+              <div className="w-2 h-2 rounded-full bg-green-500 absolute -top-0.5 -right-0.5"></div>
+              <Bell className="w-5 h-5 text-gray-600" />
             </button>
           </div>
         </div>
@@ -1235,19 +1386,18 @@ const HomePage = () => {
       <main
         ref={containerRef}
         className="pt-16 h-screen overflow-y-auto snap-y snap-mandatory"
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
       >
         {loading ? (
           <div className="h-screen flex items-center justify-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#2ECC71]"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
           </div>
         ) : campaigns.length === 0 ? (
           <div className="h-screen flex items-center justify-center">
             <div className="text-center">
               <Video className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold mb-2">No campaigns found</h3>
+              <h3 className="text-xl font-semibold mb-2 text-gray-800">
+                No campaigns found
+              </h3>
               <p className="text-gray-400">
                 Try refreshing or check back later
               </p>
@@ -1267,22 +1417,35 @@ const HomePage = () => {
                 key={campaign.id}
                 data-campaign-id={campaign.id}
                 className="h-screen w-full snap-start relative"
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={() => handleTouchEnd(campaign.id)}
               >
-                <div className="relative w-full h-full bg-black">
+                <div className="relative w-full h-full bg-white">
                   {displayMedia.url ? (
                     displayMedia.type === "video" ? (
-                      <video
-                        ref={(el) => {
-                          if (el) videoRefs.current[campaign.id] = el;
-                        }}
-                        className="w-full h-full object-cover"
-                        loop
-                        muted={isMuted}
-                        playsInline
-                        onClick={() => handleVideoClick(campaign)}
-                      >
-                        <source src={displayMedia.url} type="video/mp4" />
-                      </video>
+                      <>
+                        <video
+                          ref={(el) => {
+                            if (el) videoRefs.current[campaign.id] = el;
+                          }}
+                          className="w-full h-full object-cover"
+                          loop
+                          muted={isMuted}
+                          playsInline
+                        >
+                          <source src={displayMedia.url} type="video/mp4" />
+                        </video>
+                        
+                        {/* Double-tap heart animation */}
+                        {showHeartEffect === campaign.id && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="animate-ping">
+                              <Heart className="w-32 h-32 text-red-500 fill-red-500 opacity-70" />
+                            </div>
+                          </div>
+                        )}
+                      </>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center">
                         <img
@@ -1293,28 +1456,29 @@ const HomePage = () => {
                       </div>
                     )
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 to-black">
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
                       <div className="text-center">
-                        <Video className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                        <p className="text-gray-400">No media available</p>
+                        <Video className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-500">No media available</p>
                       </div>
                     </div>
                   )}
 
-                  <div
-                    className="absolute inset-0 cursor-pointer"
-                    onClick={() => handleVideoClick(campaign)}
-                  >
-                    {displayMedia.type === "video" && isPlaying[campaign.id] && (
-                      <div className="absolute inset-0 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-                        <div className="w-20 h-20 rounded-full bg-black/50 backdrop-blur-sm flex items-center justify-center">
-                          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center">
-                            <div className="w-6 h-6 bg-white rounded-sm"></div>
+                  {/* Video play/pause overlay */}
+                  {displayMedia.type === "video" && (
+                    <div
+                      className="absolute inset-0 cursor-pointer"
+                      onClick={() => handleVideoClick(campaign)}
+                    >
+                      {!isPlaying[campaign.id] && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                          <div className="w-20 h-20 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center">
+                            <Play className="w-10 h-10 text-green-600 ml-1" />
                           </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
+                      )}
+                    </div>
+                  )}
 
                   {hasGallery && (
                     <div className="absolute bottom-32 right-4 flex flex-col items-center space-y-6">
@@ -1324,17 +1488,17 @@ const HomePage = () => {
                           onClick={() =>
                             handleGalleryItemClick(campaign.id, idx)
                           }
-                          className={`flex flex-col items-center ${
+                          className={`flex flex-col items-center transition-opacity ${
                             currentGalleryIndex === idx
                               ? "opacity-100"
                               : "opacity-60 hover:opacity-100"
                           }`}
                         >
-                          <div className="w-12 h-12 rounded-lg bg-black/40 backdrop-blur-sm flex items-center justify-center mb-1 overflow-hidden">
+                          <div className="w-12 h-12 rounded-lg bg-white/80 backdrop-blur-sm flex items-center justify-center mb-1 overflow-hidden border border-gray-200">
                             {item.video ? (
                               <div className="relative w-full h-full">
-                                <Video className="w-6 h-6 text-white absolute inset-0 m-auto" />
-                                <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 py-0.5 rounded">
+                                <Video className="w-6 h-6 text-green-600 absolute inset-0 m-auto" />
+                                <div className="absolute bottom-1 right-1 bg-green-500 text-white text-xs px-1 py-0.5 rounded">
                                   <Video className="w-3 h-3 inline" />
                                 </div>
                               </div>
@@ -1345,7 +1509,7 @@ const HomePage = () => {
                                   alt={`Gallery ${idx + 1}`}
                                   className="w-full h-full object-cover"
                                 />
-                                <div className="absolute bottom-1 right-1 bg-black/70 text-white text-xs px-1 py-0.5 rounded">
+                                <div className="absolute bottom-1 right-1 bg-green-500 text-white text-xs px-1 py-0.5 rounded">
                                   <ImageIcon className="w-3 h-3 inline" />
                                 </div>
                               </div>
@@ -1353,7 +1517,7 @@ const HomePage = () => {
                               <ImageIcon className="w-6 h-6 text-gray-400" />
                             )}
                           </div>
-                          <span className="text-xs text-white">#{idx + 1}</span>
+                          <span className="text-xs text-gray-600">#{idx + 1}</span>
                         </button>
                       ))}
                     </div>
@@ -1372,9 +1536,9 @@ const HomePage = () => {
                         <img
                           src={creator.avatar}
                           alt={creator.name}
-                          className="w-14 h-14 rounded-full border-2 border-white group-hover:border-[#2ECC71] transition-colors"
+                          className="w-14 h-14 rounded-full border-2 border-white group-hover:border-green-500 transition-colors"
                         />
-                        <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-6 h-6 rounded-full bg-[#2ECC71] flex items-center justify-center">
+                        <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
                           <User className="w-3 h-3 text-white" />
                         </div>
                       </div>
@@ -1384,14 +1548,14 @@ const HomePage = () => {
                       onClick={() => handleLike(campaign)}
                       className="flex flex-col items-center"
                     >
-                      <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center mb-1">
+                      <div className="w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-1 border border-gray-200">
                         <Heart
-                          className={`w-7 h-7 ${
-                            isLiked ? "text-red-500 fill-red-500" : "text-white"
+                          className={`w-7 h-7 transition-colors ${
+                            isLiked ? "text-red-500 fill-red-500" : "text-gray-700 hover:text-red-500"
                           }`}
                         />
                       </div>
-                      <span className="text-xs text-white">
+                      <span className="text-xs text-gray-700">
                         {formatNumber(campaign.stats.likes)}
                       </span>
                     </button>
@@ -1400,10 +1564,10 @@ const HomePage = () => {
                       onClick={() => setShowComments(campaign.id)}
                       className="flex flex-col items-center"
                     >
-                      <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center mb-1">
-                        <MessageCircle className="w-7 h-7 text-white" />
+                      <div className="w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-1 border border-gray-200">
+                        <MessageCircle className="w-7 h-7 text-gray-700 hover:text-green-600 transition-colors" />
                       </div>
-                      <span className="text-xs text-white">
+                      <span className="text-xs text-gray-700">
                         {formatNumber(campaign.stats.comments)}
                       </span>
                     </button>
@@ -1412,39 +1576,39 @@ const HomePage = () => {
                       onClick={() => handleSave(campaign.id)}
                       className="flex flex-col items-center"
                     >
-                      <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center mb-1">
+                      <div className="w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-1 border border-gray-200">
                         <Bookmark
-                          className={`w-7 h-7 ${
+                          className={`w-7 h-7 transition-colors ${
                             isSaved
                               ? "text-yellow-500 fill-yellow-500"
-                              : "text-white"
+                              : "text-gray-700 hover:text-yellow-500"
                           }`}
                         />
                       </div>
-                      <span className="text-xs text-white">
+                      <span className="text-xs text-gray-700">
                         {formatNumber(campaign.stats.saves)}
                       </span>
                     </button>
 
                     <button className="flex flex-col items-center">
-                      <div className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center mb-1">
-                        <Share2 className="w-7 h-7 text-white" />
+                      <div className="w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-1 border border-gray-200">
+                        <Share2 className="w-7 h-7 text-gray-700 hover:text-green-600 transition-colors" />
                       </div>
-                      <span className="text-xs text-white">
+                      <span className="text-xs text-gray-700">
                         {formatNumber(campaign.stats.shares)}
                       </span>
                     </button>
                   </div>
 
-                  <div className="absolute bottom-4 left-4 right-20 text-white">
+                  <div className="absolute bottom-4 left-4 right-20 text-gray-900">
                     <div className="flex items-center space-x-3 mb-3">
                       <span className="font-bold text-lg">{creator.name}</span>
                       {creator.verified && (
-                        <div className="w-5 h-5 rounded-full bg-blue-500 flex items-center justify-center">
-                          <span className="text-xs">✓</span>
+                        <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                          <span className="text-xs text-white">✓</span>
                         </div>
                       )}
-                      <button className="px-3 py-1 bg-white text-black rounded-full text-sm font-medium hover:bg-gray-100">
+                      <button className="px-3 py-1 bg-green-500 text-white rounded-full text-sm font-medium hover:bg-green-600 transition-colors">
                         Follow
                       </button>
                     </div>
@@ -1454,7 +1618,7 @@ const HomePage = () => {
                     </h3>
 
                     {campaign.post_description && (
-                      <p className="text-gray-200 mb-2 line-clamp-2">
+                      <p className="text-gray-700 mb-2 line-clamp-2">
                         {campaign.post_description}
                       </p>
                     )}
@@ -1464,27 +1628,27 @@ const HomePage = () => {
                         {campaign.tags.slice(0, 3).map((tag, idx) => (
                           <span
                             key={idx}
-                            className="px-2 py-1 bg-gray-800/80 backdrop-blur-sm rounded-md text-sm"
+                            className="px-2 py-1 bg-green-100 text-green-700 rounded-md text-sm hover:bg-green-200 transition-colors"
                           >
                             #{tag}
                           </span>
                         ))}
                         {campaign.tags.length > 3 && (
-                          <span className="px-2 py-1 bg-gray-800/80 backdrop-blur-sm rounded-md text-sm">
+                          <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-sm">
                             +{campaign.tags.length - 3}
                           </span>
                         )}
                       </div>
                     )}
 
-                    <div className="flex items-center space-x-4 text-sm text-gray-300">
+                    <div className="flex items-center space-x-4 text-sm text-gray-500">
                       <span>{formatNumber(campaign.stats.views)} views</span>
                       <span>•</span>
                       <span>
                         ${parseFloat(campaign.budget).toLocaleString()} budget
                       </span>
                       <span>•</span>
-                      <span className="text-[#2ECC71]">Sponsored</span>
+                      <span className="text-green-600 font-medium">Sponsored</span>
                     </div>
                   </div>
 
@@ -1492,12 +1656,12 @@ const HomePage = () => {
                     <div className="absolute top-20 right-4">
                       <button
                         onClick={() => setIsMuted(!isMuted)}
-                        className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-sm flex items-center justify-center"
+                        className="w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center border border-gray-200 hover:bg-white transition-colors"
                       >
                         {isMuted ? (
-                          <VolumeX className="w-5 h-5 text-white" />
+                          <VolumeX className="w-5 h-5 text-gray-700" />
                         ) : (
-                          <Volume2 className="w-5 h-5 text-white" />
+                          <Volume2 className="w-5 h-5 text-gray-700" />
                         )}
                       </button>
                     </div>
@@ -1506,10 +1670,10 @@ const HomePage = () => {
                   {index === 0 && campaigns.length > 1 && (
                     <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 animate-bounce pointer-events-none">
                       <div className="flex flex-col items-center">
-                        <span className="text-white text-xs mb-1">
+                        <span className="text-gray-600 text-xs mb-1">
                           Swipe up
                         </span>
-                        <ChevronDown className="w-6 h-6 text-white" />
+                        <ChevronDown className="w-6 h-6 text-green-600" />
                       </div>
                     </div>
                   )}
@@ -1530,6 +1694,14 @@ const HomePage = () => {
         />
       )}
 
+      {showSidebar && (
+        <SharedSidebar
+          isOpen={showSidebar}
+          onClose={() => setShowSidebar(false)}
+          user={currentUser}
+        />
+      )}
+
       {showComments && (
         <CommentsView
           campaign={campaigns.find((c) => c.id === showComments)!}
@@ -1537,25 +1709,25 @@ const HomePage = () => {
         />
       )}
 
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-lg border-t border-gray-800">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-gray-100">
         <div className="flex justify-around items-center h-16">
-          <button className="flex flex-col items-center space-y-1 text-white">
+          <button className="flex flex-col items-center space-y-1 text-green-600">
             <Home className="w-6 h-6" />
             <span className="text-xs">For You</span>
           </button>
 
-          <button className="flex flex-col items-center space-y-1 text-gray-400">
+          <button className="flex flex-col items-center space-y-1 text-gray-400 hover:text-green-600 transition-colors">
             <Search className="w-6 h-6" />
             <span className="text-xs">Search</span>
           </button>
 
           <button className="relative -top-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-r from-[#0A5C36] to-[#2ECC71] flex items-center justify-center shadow-lg">
+            <div className="w-16 h-16 rounded-full bg-gradient-to-r from-green-600 to-green-500 flex items-center justify-center shadow-lg hover:shadow-xl transition-shadow">
               <Plus className="w-8 h-8 text-white" />
             </div>
           </button>
 
-          <button className="flex flex-col items-center space-y-1 text-gray-400">
+          <button className="flex flex-col items-center space-y-1 text-gray-400 hover:text-green-600 transition-colors">
             <Sparkles className="w-6 h-6" />
             <span className="text-xs">Trending</span>
           </button>
@@ -1569,7 +1741,7 @@ const HomePage = () => {
                 setShowProfile(true);
               }
             }}
-            className="flex flex-col items-center space-y-1 text-gray-400"
+            className="flex flex-col items-center space-y-1 text-gray-400 hover:text-green-600 transition-colors"
           >
             <User className="w-6 h-6" />
             <span className="text-xs">Profile</span>

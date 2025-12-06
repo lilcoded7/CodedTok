@@ -48,34 +48,9 @@ import {
   Tag,
   Filter,
   Bell,
-  DollarSign,
-  Bitcoin,
-  Gem,
-  Droplets,
-  TrendingUp,
-  Gift,
-  ChevronRight as ChevronRightIcon,
-  Zap,
-  Clock,
-  Percent,
-  Shield,
-  Coins,
-  Crown,
-  Activity,
-  CheckCircle,
-  Star,
-  Wallet,
-  HelpCircle,
-  Package,
-  Car,
-  Truck,
-  ShoppingBag,
-  Smartphone,
-  Briefcase,
-  Building,
-  Plane,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import SharedSidebar from "./SharedSidebar";
 import api from "../axios/axiosInsatance";
 
 interface CampaignAccount {
@@ -773,288 +748,6 @@ const HomePage = () => {
     return num.toString();
   };
 
-  // Custom Sidebar Component matching EarningsDashboard design
-  const CustomSidebar = ({
-    isOpen,
-    onClose,
-  }: {
-    isOpen: boolean;
-    onClose: () => void;
-  }) => {
-    const [activeTab, setActiveTab] = useState("home");
-
-    // Navigation Items
-    const navItems = [
-      {
-        id: "home",
-        label: "Home Feed",
-        icon: <Home className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/home",
-      },
-      {
-        id: "search",
-        label: "Search",
-        icon: <Search className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/search",
-      },
-      {
-        id: "earnings",
-        label: "Earnings",
-        icon: <DollarSign className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/earnings",
-      },
-      {
-        id: "mining",
-        label: "Crypto Mining",
-        icon: <Bitcoin className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/mining",
-      },
-      {
-        id: "gold",
-        label: "Gold Bars",
-        icon: <Gem className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/gold",
-      },
-      {
-        id: "oil",
-        label: "Oil Barrels",
-        icon: <Droplets className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/oil",
-      },
-      {
-        id: "crypto",
-        label: "Crypto Assets",
-        icon: <Coins className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/crypto",
-      },
-      {
-        id: "mystery",
-        label: "Mystery Box",
-        icon: <Package className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/mystery",
-      },
-      {
-        id: "referrals",
-        label: "Referrals",
-        icon: <Users className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/referrals",
-      },
-      {
-        id: "subscription",
-        label: "Subscription",
-        icon: <Crown className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/subscription",
-      },
-      {
-        id: "trending",
-        label: "Trending",
-        icon: <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/trending",
-      },
-      {
-        id: "messages",
-        label: "Messages",
-        icon: <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/messages",
-      },
-      {
-        id: "saved",
-        label: "Saved",
-        icon: <Bookmark className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/saved",
-      },
-      {
-        id: "profile",
-        label: "Profile",
-        icon: <User className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/profile",
-      },
-      {
-        id: "support",
-        label: "Support",
-        icon: <HelpCircle className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/support",
-      },
-      {
-        id: "settings",
-        label: "Settings",
-        icon: <Settings className="w-4 h-4 sm:w-5 sm:h-5" />,
-        path: "/settings",
-      },
-    ];
-
-    const handleNavigation = (id: string, path: string) => {
-      setActiveTab(id);
-      if (id === "earnings") {
-        router.push("/earnings");
-        onClose();
-      } else if (path !== "/home") {
-        // For other paths, implement navigation as needed
-        console.log(`Navigate to: ${path}`);
-        onClose();
-      }
-    };
-
-    return (
-      <>
-        {/* Mobile Overlay */}
-        {isOpen && (
-          <div
-            className="fixed inset-0 bg-black/50 z-40 lg:hidden"
-            onClick={onClose}
-          />
-        )}
-
-        {/* Sidebar Container */}
-        <div
-          className={`fixed top-0 left-0 h-full w-[280px] bg-white border-r border-gray-200 z-50 transform transition-transform duration-300 ease-in-out ${
-            isOpen ? "translate-x-0" : "-translate-x-full"
-          } lg:translate-x-0 lg:relative lg:block`}
-        >
-          {/* Header */}
-          <div className="p-6 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-600 to-green-500 flex items-center justify-center">
-                  <div className="w-6 h-6 rounded-full border-2 border-white"></div>
-                </div>
-                <div>
-                  <span className="text-lg font-bold text-gray-900">
-                    Prestige<span className="text-green-600">Wealth</span>
-                  </span>
-                  <p className="text-xs text-gray-500">Social Investment</p>
-                </div>
-              </div>
-              <button
-                onClick={onClose}
-                className="lg:hidden w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center"
-              >
-                <X className="w-4 h-4 text-gray-600" />
-              </button>
-            </div>
-
-            {/* User Info */}
-            {currentUser && (
-              <div className="mt-6 flex items-center space-x-3">
-                <img
-                  src={
-                    currentUser.account.profile ||
-                    "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=400&auto=format&fit=crop"
-                  }
-                  alt={currentUser.account.username}
-                  className="w-12 h-12 rounded-full border-2 border-green-500"
-                />
-                <div>
-                  <h3 className="font-bold text-gray-900">
-                    {currentUser.account.name || currentUser.account.username}
-                  </h3>
-                  <p className="text-sm text-gray-500">
-                    @{currentUser.account.username}
-                  </p>
-                  {currentUser.account.verified && (
-                    <div className="flex items-center space-x-1 mt-1">
-                      <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center">
-                        <span className="text-xs text-white">✓</span>
-                      </div>
-                      <span className="text-xs text-gray-500">Verified</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Stats */}
-            {currentUser && (
-              <div className="mt-6 grid grid-cols-3 gap-3">
-                <div className="text-center">
-                  <div className="text-lg font-bold text-gray-900">
-                    {formatNumber(currentUser.account.followers_count || 0)}
-                  </div>
-                  <div className="text-xs text-gray-500">Followers</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-gray-900">
-                    {formatNumber(currentUser.account.following_count || 0)}
-                  </div>
-                  <div className="text-xs text-gray-500">Following</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-lg font-bold text-gray-900">
-                    {currentUser.account.posts_count || 0}
-                  </div>
-                  <div className="text-xs text-gray-500">Posts</div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Navigation */}
-          <div className="p-4 overflow-y-auto h-[calc(100vh-240px)]">
-            <div className="space-y-1">
-              {navItems.map((item) => (
-                <button
-                  key={item.id}
-                  onClick={() => handleNavigation(item.id, item.path)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
-                    activeTab === item.id
-                      ? "bg-gradient-to-r from-green-50 to-emerald-50 text-green-600 border border-green-200"
-                      : "hover:bg-gray-50 text-gray-700"
-                  }`}
-                >
-                  <div className="flex items-center space-x-3">
-                    <div
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                        activeTab === item.id
-                          ? "bg-green-100 text-green-600"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {item.icon}
-                    </div>
-                    <span className="font-medium text-sm">{item.label}</span>
-                  </div>
-                  {activeTab === item.id && (
-                    <ChevronRightIcon className="w-4 h-4 text-green-500" />
-                  )}
-                </button>
-              ))}
-            </div>
-
-            {/* Upgrade Card */}
-            <div className="mt-8 mx-4 p-4 bg-gradient-to-r from-green-600 to-green-500 rounded-xl">
-              <div className="flex items-center space-x-3">
-                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
-                  <Crown className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h4 className="text-white font-bold text-sm">Upgrade Plan</h4>
-                  <p className="text-white/80 text-xs">Get VIP Benefits</p>
-                </div>
-              </div>
-              <button className="w-full mt-4 py-2 bg-white text-green-600 rounded-lg font-semibold text-sm hover:bg-gray-50">
-                Upgrade Now
-              </button>
-            </div>
-
-            {/* Logout Button */}
-            <button
-              onClick={() => {
-                router.push("/login");
-                onClose();
-              }}
-              className="w-full mt-4 flex items-center space-x-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            >
-              <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
-                <LogOut className="w-4 h-4" />
-              </div>
-              <span className="font-medium text-sm">Logout</span>
-            </button>
-          </div>
-        </div>
-      </>
-    );
-  };
-
   const CommentsView = ({
     campaign,
     onClose,
@@ -1649,351 +1342,347 @@ const HomePage = () => {
 
   return (
     <div className="min-h-screen bg-white text-gray-900">
-      {/* Mobile Header */}
-      <header className="lg:hidden fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-b border-gray-100 px-4 py-3 flex items-center justify-between">
-        <button
-          onClick={() => setShowSidebar(true)}
-          className={`w-10 h-10 rounded-full flex items-center justify-center ${
-            showSidebar
-              ? "bg-green-600"
-              : "bg-gradient-to-br from-green-600 to-green-500"
-          }`}
-        >
-          {showSidebar ? (
-            <X className="w-5 h-5 text-white" />
-          ) : (
-            <Menu className="w-5 h-5 text-white" />
-          )}
-        </button>
+      <header className="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-b border-gray-100">
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setShowSidebar(true)}
+              className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center overflow-hidden border border-gray-200 hover:bg-gray-200 transition-colors"
+            >
+              {currentUser && currentUser.account.profile ? (
+                <img
+                  src={currentUser.account.profile}
+                  alt={currentUser.account.username}
+                  className="w-full h-full object-cover"
+                />
+              ) : currentUser ? (
+                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                  <User className="w-5 h-5 text-gray-600" />
+                </div>
+              ) : (
+                <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                  <User className="w-5 h-5 text-gray-600" />
+                </div>
+              )}
+            </button>
 
-        <div className="flex-1 flex justify-center">
-          <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-600 to-green-500 flex items-center justify-center">
-              <div className="w-4 h-4 rounded-full border-2 border-white"></div>
+            <div className="flex items-center space-x-2">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-green-600 to-green-500 flex items-center justify-center">
+                <div className="w-4 h-4 rounded-full border-2 border-white"></div>
+              </div>
+              <span className="text-lg font-bold text-gray-900">
+                Prestige<span className="text-green-600">Wealth</span>
+              </span>
             </div>
-            <span className="text-lg font-bold text-gray-900">
-              Prestige<span className="text-green-600">Wealth</span>
-            </span>
+
+            <button className="relative w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition-colors">
+              <div className="w-2 h-2 rounded-full bg-green-500 absolute -top-0.5 -right-0.5"></div>
+              <Bell className="w-5 h-5 text-gray-600" />
+            </button>
           </div>
         </div>
-
-        <button className="relative">
-          <div className="w-2 h-2 rounded-full bg-green-500 absolute -top-0.5 -right-0.5"></div>
-          <div className="w-10 h-10 rounded-full border border-gray-200 flex items-center justify-center hover:bg-gray-100 transition-colors">
-            <Bell className="w-5 h-5 text-gray-600" />
-          </div>
-        </button>
       </header>
 
-      <div className="flex pt-16 lg:pt-0">
-        {/* Custom Sidebar */}
-        <CustomSidebar
-          isOpen={showSidebar}
-          onClose={() => setShowSidebar(false)}
-        />
-
-        {/* Main Content */}
-        <main
-          ref={containerRef}
-          className="flex-1 lg:ml-[280px] h-screen overflow-y-auto snap-y snap-mandatory"
-        >
-          {loading ? (
-            <div className="h-screen flex items-center justify-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+      <main
+        ref={containerRef}
+        className="pt-16 h-screen overflow-y-auto snap-y snap-mandatory"
+      >
+        {loading ? (
+          <div className="h-screen flex items-center justify-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600"></div>
+          </div>
+        ) : campaigns.length === 0 ? (
+          <div className="h-screen flex items-center justify-center">
+            <div className="text-center">
+              <Video className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold mb-2 text-gray-800">
+                No campaigns found
+              </h3>
+              <p className="text-gray-400">
+                Try refreshing or check back later
+              </p>
             </div>
-          ) : campaigns.length === 0 ? (
-            <div className="h-screen flex items-center justify-center">
-              <div className="text-center">
-                <Video className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold mb-2 text-gray-800">
-                  No campaigns found
-                </h3>
-                <p className="text-gray-400">
-                  Try refreshing or check back later
-                </p>
-              </div>
-            </div>
-          ) : (
-            campaigns.map((campaign, index) => {
-              const creator = getCreatorInfo(campaign);
-              const displayMedia = getDisplayMedia(campaign);
-              const currentGalleryIndex = galleryIndex[campaign.id] || 0;
-              const hasGallery = campaign.campaign_gallery.length > 0;
-              const isLiked = likedCampaigns.has(campaign.id);
-              const isSaved = savedCampaigns.has(campaign.id);
+          </div>
+        ) : (
+          campaigns.map((campaign, index) => {
+            const creator = getCreatorInfo(campaign);
+            const displayMedia = getDisplayMedia(campaign);
+            const currentGalleryIndex = galleryIndex[campaign.id] || 0;
+            const hasGallery = campaign.campaign_gallery.length > 0;
+            const isLiked = likedCampaigns.has(campaign.id);
+            const isSaved = savedCampaigns.has(campaign.id);
 
-              return (
-                <div
-                  key={campaign.id}
-                  data-campaign-id={campaign.id}
-                  className="h-screen w-full snap-start relative"
-                  onTouchStart={handleTouchStart}
-                  onTouchMove={handleTouchMove}
-                  onTouchEnd={() => handleTouchEnd(campaign.id)}
-                >
-                  <div className="relative w-full h-full bg-white">
-                    {displayMedia.url ? (
-                      displayMedia.type === "video" ? (
-                        <>
-                          <video
-                            ref={(el) => {
-                              if (el) videoRefs.current[campaign.id] = el;
-                            }}
-                            className="w-full h-full object-cover"
-                            loop
-                            muted={isMuted}
-                            playsInline
-                          >
-                            <source src={displayMedia.url} type="video/mp4" />
-                          </video>
-                          
-                          {/* Double-tap heart animation */}
-                          {showHeartEffect === campaign.id && (
-                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                              <div className="animate-ping">
-                                <Heart className="w-32 h-32 text-red-500 fill-red-500 opacity-70" />
-                              </div>
-                            </div>
-                          )}
-                        </>
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <img
-                            src={displayMedia.url}
-                            alt={campaign.post_name}
-                            className="w-full h-full object-contain"
-                          />
-                        </div>
-                      )
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
-                        <div className="text-center">
-                          <Video className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-                          <p className="text-gray-500">No media available</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Video play/pause overlay */}
-                    {displayMedia.type === "video" && (
-                      <div
-                        className="absolute inset-0 cursor-pointer"
-                        onClick={() => handleVideoClick(campaign)}
-                      >
-                        {!isPlaying[campaign.id] && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                            <div className="w-20 h-20 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center">
-                              <Play className="w-10 h-10 text-green-600 ml-1" />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {hasGallery && (
-                      <div className="absolute bottom-32 right-4 flex flex-col items-center space-y-6">
-                        {campaign.campaign_gallery.map((item, idx) => (
-                          <button
-                            key={item.id}
-                            onClick={() =>
-                              handleGalleryItemClick(campaign.id, idx)
-                            }
-                            className={`flex flex-col items-center transition-opacity ${
-                              currentGalleryIndex === idx
-                                ? "opacity-100"
-                                : "opacity-60 hover:opacity-100"
-                            }`}
-                          >
-                            <div className="w-12 h-12 rounded-lg bg-white/80 backdrop-blur-sm flex items-center justify-center mb-1 overflow-hidden border border-gray-200">
-                              {item.video ? (
-                                <div className="relative w-full h-full">
-                                  <Video className="w-6 h-6 text-green-600 absolute inset-0 m-auto" />
-                                  <div className="absolute bottom-1 right-1 bg-green-500 text-white text-xs px-1 py-0.5 rounded">
-                                    <Video className="w-3 h-3 inline" />
-                                  </div>
-                                </div>
-                              ) : item.image ? (
-                                <div className="relative w-full h-full">
-                                  <img
-                                    src={item.image}
-                                    alt={`Gallery ${idx + 1}`}
-                                    className="w-full h-full object-cover"
-                                  />
-                                  <div className="absolute bottom-1 right-1 bg-green-500 text-white text-xs px-1 py-0.5 rounded">
-                                    <ImageIcon className="w-3 h-3 inline" />
-                                  </div>
-                                </div>
-                              ) : (
-                                <ImageIcon className="w-6 h-6 text-gray-400" />
-                              )}
-                            </div>
-                            <span className="text-xs text-gray-600">#{idx + 1}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-
-                    <div className="absolute bottom-32 right-4 flex flex-col items-center space-y-6">
-                      <button
-                        onClick={() => {
-                          setSelectedAccount(campaign.account);
-                          pauseAllVideos();
-                          setShowProfile(true);
-                        }}
-                        className="flex flex-col items-center group"
-                      >
-                        <div className="relative">
-                          <img
-                            src={creator.avatar}
-                            alt={creator.name}
-                            className="w-14 h-14 rounded-full border-2 border-white group-hover:border-green-500 transition-colors"
-                          />
-                          <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
-                            <User className="w-3 h-3 text-white" />
-                          </div>
-                        </div>
-                      </button>
-
-                      <button
-                        onClick={() => handleLike(campaign)}
-                        className="flex flex-col items-center"
-                      >
-                        <div className="w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-1 border border-gray-200">
-                          <Heart
-                            className={`w-7 h-7 transition-colors ${
-                              isLiked ? "text-red-500 fill-red-500" : "text-gray-700 hover:text-red-500"
-                            }`}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-700">
-                          {formatNumber(campaign.stats.likes)}
-                        </span>
-                      </button>
-
-                      <button
-                        onClick={() => setShowComments(campaign.id)}
-                        className="flex flex-col items-center"
-                      >
-                        <div className="w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-1 border border-gray-200">
-                          <MessageCircle className="w-7 h-7 text-gray-700 hover:text-green-600 transition-colors" />
-                        </div>
-                        <span className="text-xs text-gray-700">
-                          {formatNumber(campaign.stats.comments)}
-                        </span>
-                      </button>
-
-                      <button
-                        onClick={() => handleSave(campaign.id)}
-                        className="flex flex-col items-center"
-                      >
-                        <div className="w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-1 border border-gray-200">
-                          <Bookmark
-                            className={`w-7 h-7 transition-colors ${
-                              isSaved
-                                ? "text-yellow-500 fill-yellow-500"
-                                : "text-gray-700 hover:text-yellow-500"
-                            }`}
-                          />
-                        </div>
-                        <span className="text-xs text-gray-700">
-                          {formatNumber(campaign.stats.saves)}
-                        </span>
-                      </button>
-
-                      <button className="flex flex-col items-center">
-                        <div className="w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-1 border border-gray-200">
-                          <Share2 className="w-7 h-7 text-gray-700 hover:text-green-600 transition-colors" />
-                        </div>
-                        <span className="text-xs text-gray-700">
-                          {formatNumber(campaign.stats.shares)}
-                        </span>
-                      </button>
-                    </div>
-
-                    <div className="absolute bottom-4 left-4 right-20 text-gray-900">
-                      <div className="flex items-center space-x-3 mb-3">
-                        <span className="font-bold text-lg">{creator.name}</span>
-                        {creator.verified && (
-                          <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
-                            <span className="text-xs text-white">✓</span>
-                          </div>
-                        )}
-                        <button className="px-3 py-1 bg-green-500 text-white rounded-full text-sm font-medium hover:bg-green-600 transition-colors">
-                          Follow
-                        </button>
-                      </div>
-
-                      <h3 className="font-bold text-lg mb-2">
-                        {campaign.post_name}
-                      </h3>
-
-                      {campaign.post_description && (
-                        <p className="text-gray-700 mb-2 line-clamp-2">
-                          {campaign.post_description}
-                        </p>
-                      )}
-
-                      {campaign.tags && campaign.tags.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mb-2">
-                          {campaign.tags.slice(0, 3).map((tag, idx) => (
-                            <span
-                              key={idx}
-                              className="px-2 py-1 bg-green-100 text-green-700 rounded-md text-sm hover:bg-green-200 transition-colors"
-                            >
-                              #{tag}
-                            </span>
-                          ))}
-                          {campaign.tags.length > 3 && (
-                            <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-sm">
-                              +{campaign.tags.length - 3}
-                            </span>
-                          )}
-                        </div>
-                      )}
-
-                      <div className="flex items-center space-x-4 text-sm text-gray-500">
-                        <span>{formatNumber(campaign.stats.views)} views</span>
-                        <span>•</span>
-                        <span>
-                          ${parseFloat(campaign.budget).toLocaleString()} budget
-                        </span>
-                        <span>•</span>
-                        <span className="text-green-600 font-medium">Sponsored</span>
-                      </div>
-                    </div>
-
-                    {displayMedia.type === "video" && (
-                      <div className="absolute top-20 right-4">
-                        <button
-                          onClick={() => setIsMuted(!isMuted)}
-                          className="w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center border border-gray-200 hover:bg-white transition-colors"
+            return (
+              <div
+                key={campaign.id}
+                data-campaign-id={campaign.id}
+                className="h-screen w-full snap-start relative"
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={() => handleTouchEnd(campaign.id)}
+              >
+                <div className="relative w-full h-full bg-white">
+                  {displayMedia.url ? (
+                    displayMedia.type === "video" ? (
+                      <>
+                        <video
+                          ref={(el) => {
+                            if (el) videoRefs.current[campaign.id] = el;
+                          }}
+                          className="w-full h-full object-cover"
+                          loop
+                          muted={isMuted}
+                          playsInline
                         >
-                          {isMuted ? (
-                            <VolumeX className="w-5 h-5 text-gray-700" />
-                          ) : (
-                            <Volume2 className="w-5 h-5 text-gray-700" />
-                          )}
+                          <source src={displayMedia.url} type="video/mp4" />
+                        </video>
+                        
+                        {/* Double-tap heart animation */}
+                        {showHeartEffect === campaign.id && (
+                          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                            <div className="animate-ping">
+                              <Heart className="w-32 h-32 text-red-500 fill-red-500 opacity-70" />
+                            </div>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <img
+                          src={displayMedia.url}
+                          alt={campaign.post_name}
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    )
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
+                      <div className="text-center">
+                        <Video className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+                        <p className="text-gray-500">No media available</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Video play/pause overlay */}
+                  {displayMedia.type === "video" && (
+                    <div
+                      className="absolute inset-0 cursor-pointer"
+                      onClick={() => handleVideoClick(campaign)}
+                    >
+                      {!isPlaying[campaign.id] && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                          <div className="w-20 h-20 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center">
+                            <Play className="w-10 h-10 text-green-600 ml-1" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {hasGallery && (
+                    <div className="absolute bottom-32 right-4 flex flex-col items-center space-y-6">
+                      {campaign.campaign_gallery.map((item, idx) => (
+                        <button
+                          key={item.id}
+                          onClick={() =>
+                            handleGalleryItemClick(campaign.id, idx)
+                          }
+                          className={`flex flex-col items-center transition-opacity ${
+                            currentGalleryIndex === idx
+                              ? "opacity-100"
+                              : "opacity-60 hover:opacity-100"
+                          }`}
+                        >
+                          <div className="w-12 h-12 rounded-lg bg-white/80 backdrop-blur-sm flex items-center justify-center mb-1 overflow-hidden border border-gray-200">
+                            {item.video ? (
+                              <div className="relative w-full h-full">
+                                <Video className="w-6 h-6 text-green-600 absolute inset-0 m-auto" />
+                                <div className="absolute bottom-1 right-1 bg-green-500 text-white text-xs px-1 py-0.5 rounded">
+                                  <Video className="w-3 h-3 inline" />
+                                </div>
+                              </div>
+                            ) : item.image ? (
+                              <div className="relative w-full h-full">
+                                <img
+                                  src={item.image}
+                                  alt={`Gallery ${idx + 1}`}
+                                  className="w-full h-full object-cover"
+                                />
+                                <div className="absolute bottom-1 right-1 bg-green-500 text-white text-xs px-1 py-0.5 rounded">
+                                  <ImageIcon className="w-3 h-3 inline" />
+                                </div>
+                              </div>
+                            ) : (
+                              <ImageIcon className="w-6 h-6 text-gray-400" />
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-600">#{idx + 1}</span>
                         </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="absolute bottom-32 right-4 flex flex-col items-center space-y-6">
+                    <button
+                      onClick={() => {
+                        setSelectedAccount(campaign.account);
+                        pauseAllVideos();
+                        setShowProfile(true);
+                      }}
+                      className="flex flex-col items-center group"
+                    >
+                      <div className="relative">
+                        <img
+                          src={creator.avatar}
+                          alt={creator.name}
+                          className="w-14 h-14 rounded-full border-2 border-white group-hover:border-green-500 transition-colors"
+                        />
+                        <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
+                          <User className="w-3 h-3 text-white" />
+                        </div>
+                      </div>
+                    </button>
+
+                    <button
+                      onClick={() => handleLike(campaign)}
+                      className="flex flex-col items-center"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-1 border border-gray-200">
+                        <Heart
+                          className={`w-7 h-7 transition-colors ${
+                            isLiked ? "text-red-500 fill-red-500" : "text-gray-700 hover:text-red-500"
+                          }`}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-700">
+                        {formatNumber(campaign.stats.likes)}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => setShowComments(campaign.id)}
+                      className="flex flex-col items-center"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-1 border border-gray-200">
+                        <MessageCircle className="w-7 h-7 text-gray-700 hover:text-green-600 transition-colors" />
+                      </div>
+                      <span className="text-xs text-gray-700">
+                        {formatNumber(campaign.stats.comments)}
+                      </span>
+                    </button>
+
+                    <button
+                      onClick={() => handleSave(campaign.id)}
+                      className="flex flex-col items-center"
+                    >
+                      <div className="w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-1 border border-gray-200">
+                        <Bookmark
+                          className={`w-7 h-7 transition-colors ${
+                            isSaved
+                              ? "text-yellow-500 fill-yellow-500"
+                              : "text-gray-700 hover:text-yellow-500"
+                          }`}
+                        />
+                      </div>
+                      <span className="text-xs text-gray-700">
+                        {formatNumber(campaign.stats.saves)}
+                      </span>
+                    </button>
+
+                    <button className="flex flex-col items-center">
+                      <div className="w-12 h-12 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center mb-1 border border-gray-200">
+                        <Share2 className="w-7 h-7 text-gray-700 hover:text-green-600 transition-colors" />
+                      </div>
+                      <span className="text-xs text-gray-700">
+                        {formatNumber(campaign.stats.shares)}
+                      </span>
+                    </button>
+                  </div>
+
+                  <div className="absolute bottom-4 left-4 right-20 text-gray-900">
+                    <div className="flex items-center space-x-3 mb-3">
+                      <span className="font-bold text-lg">{creator.name}</span>
+                      {creator.verified && (
+                        <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
+                          <span className="text-xs text-white">✓</span>
+                        </div>
+                      )}
+                      <button className="px-3 py-1 bg-green-500 text-white rounded-full text-sm font-medium hover:bg-green-600 transition-colors">
+                        Follow
+                      </button>
+                    </div>
+
+                    <h3 className="font-bold text-lg mb-2">
+                      {campaign.post_name}
+                    </h3>
+
+                    {campaign.post_description && (
+                      <p className="text-gray-700 mb-2 line-clamp-2">
+                        {campaign.post_description}
+                      </p>
+                    )}
+
+                    {campaign.tags && campaign.tags.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {campaign.tags.slice(0, 3).map((tag, idx) => (
+                          <span
+                            key={idx}
+                            className="px-2 py-1 bg-green-100 text-green-700 rounded-md text-sm hover:bg-green-200 transition-colors"
+                          >
+                            #{tag}
+                          </span>
+                        ))}
+                        {campaign.tags.length > 3 && (
+                          <span className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-sm">
+                            +{campaign.tags.length - 3}
+                          </span>
+                        )}
                       </div>
                     )}
 
-                    {index === 0 && campaigns.length > 1 && (
-                      <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 animate-bounce pointer-events-none">
-                        <div className="flex flex-col items-center">
-                          <span className="text-gray-600 text-xs mb-1">
-                            Swipe up
-                          </span>
-                          <ChevronDown className="w-6 h-6 text-green-600" />
-                        </div>
-                      </div>
-                    )}
+                    <div className="flex items-center space-x-4 text-sm text-gray-500">
+                      <span>{formatNumber(campaign.stats.views)} views</span>
+                      <span>•</span>
+                      <span>
+                        ${parseFloat(campaign.budget).toLocaleString()} budget
+                      </span>
+                      <span>•</span>
+                      <span className="text-green-600 font-medium">Sponsored</span>
+                    </div>
                   </div>
+
+                  {displayMedia.type === "video" && (
+                    <div className="absolute top-20 right-4">
+                      <button
+                        onClick={() => setIsMuted(!isMuted)}
+                        className="w-10 h-10 rounded-full bg-white/80 backdrop-blur-sm flex items-center justify-center border border-gray-200 hover:bg-white transition-colors"
+                      >
+                        {isMuted ? (
+                          <VolumeX className="w-5 h-5 text-gray-700" />
+                        ) : (
+                          <Volume2 className="w-5 h-5 text-gray-700" />
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  {index === 0 && campaigns.length > 1 && (
+                    <div className="absolute bottom-24 left-1/2 transform -translate-x-1/2 animate-bounce pointer-events-none">
+                      <div className="flex flex-col items-center">
+                        <span className="text-gray-600 text-xs mb-1">
+                          Swipe up
+                        </span>
+                        <ChevronDown className="w-6 h-6 text-green-600" />
+                      </div>
+                    </div>
+                  )}
                 </div>
-              );
-            })
-          )}
-        </main>
-      </div>
+              </div>
+            );
+          })
+        )}
+      </main>
 
       {showProfile && selectedAccount && (
         <ProfileView
@@ -2005,6 +1694,14 @@ const HomePage = () => {
         />
       )}
 
+      {showSidebar && (
+        <SharedSidebar
+          isOpen={showSidebar}
+          onClose={() => setShowSidebar(false)}
+          user={currentUser}
+        />
+      )}
+
       {showComments && (
         <CommentsView
           campaign={campaigns.find((c) => c.id === showComments)!}
@@ -2012,8 +1709,7 @@ const HomePage = () => {
         />
       )}
 
-      {/* Bottom Navigation - Only on mobile */}
-      <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-gray-100">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-lg border-t border-gray-100">
         <div className="flex justify-around items-center h-16">
           <button className="flex flex-col items-center space-y-1 text-green-600">
             <Home className="w-6 h-6" />
@@ -2025,12 +1721,9 @@ const HomePage = () => {
             <span className="text-xs">Search</span>
           </button>
 
-          <button
-            onClick={() => router.push("/earnings")}
-            className="relative -top-4"
-          >
+          <button className="relative -top-4">
             <div className="w-16 h-16 rounded-full bg-gradient-to-r from-green-600 to-green-500 flex items-center justify-center shadow-lg hover:shadow-xl transition-shadow">
-              <DollarSign className="w-8 h-8 text-white" />
+              <Plus className="w-8 h-8 text-white" />
             </div>
           </button>
 
